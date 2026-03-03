@@ -2,7 +2,7 @@
 
 1. Make changes in `ide/devtool/` directory
 
-2. Build and export the ZX site:
+2. Build and export the Ziex site:
    ```bash
    cd ide/devtool
    zig build -Dplatform=chromium

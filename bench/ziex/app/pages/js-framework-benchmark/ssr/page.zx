@@ -7,7 +7,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <div id="main">
                 <div class="controls">
                     <div class="jumbotron">
-                        <h3>ZX Server-Side "non-keyed"</h3>
+                        <h3>Ziex Server-Side "non-keyed"</h3>
                         <div class="button-grid">
                             <form method="get"><button type="submit" class="btn" name="action" value="run">Create 1,000 rows</button></form>
                             <form method="get"><button type="submit" class="btn" name="action" value="runlots">Create 10,000 rows</button></form>

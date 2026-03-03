@@ -41,7 +41,7 @@
         "zx.format.enableZigExpression": {
           "type": "boolean",
           "default": true,
-          "description": "Enable autoformatting of Zig expressions (and HTML inside those expressions) that are embedded inside HTML blocks. Default is true. Use the command 'ZX: Toggle embedded Zig expression formatting' from the Command Palette to toggle this setting."
+          "description": "Enable autoformatting of Zig expressions (and HTML inside those expressions) that are embedded inside HTML blocks. Default is true. Use the command 'Ziex: Toggle embedded Zig expression formatting' from the Command Palette to toggle this setting."
         },
         "zx.autoCloseTags": {
           "type": "boolean",

@@ -14,7 +14,7 @@ pub fn SimpleApp(allocator: zx.Allocator) zx.Component {
             <div class="jumbotron">
                 <div class="row">
                     <div class="col-md-6">
-                        <h1>{"ZX Client-Side keyed"}</h1>
+                        <h1>{"Ziex Client-Side keyed"}</h1>
                     </div>
                     <div class="col-md-6">
                         <div class="row">

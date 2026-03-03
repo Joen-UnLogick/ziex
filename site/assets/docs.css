@@ -460,8 +460,9 @@ body {
 
 /* Sidebar Tabs (Learn / Reference) */
 .sidebar-tabs {
+    width: 260px;
     display: flex;
-    padding: 0.4rem 0.75rem 0;
+    padding: 0.4rem 0.45rem 0;
     gap: 0.25rem;
     border-bottom: 1px solid var(--border-color);
     background: var(--panel-bg);

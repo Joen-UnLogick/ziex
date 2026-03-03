@@ -30,7 +30,7 @@ winget install -e --id zig.zig # Windows
 ```tsx site/pages/examples/overview.zx
 pub fn QuickExample(allocator: zx.Allocator) zx.Component {
     const is_loading = true;
-    const chars = "Hello, ZX Dev!";
+    const chars = "Hello, Ziex Dev!";
     var i: usize = 0;
     return (
         <main @allocator={allocator}>

@@ -164,7 +164,7 @@ function createTranspiledFile(zxPath: string, workspaceRoot: string): string | n
 
     return zigPath;
   } catch (e) {
-    console.error(`ZX: Could not create transpiled file for ${zxPath}:`, e);
+    console.error(`Ziex: Could not create transpiled file for ${zxPath}:`, e);
     return null;
   }
 }

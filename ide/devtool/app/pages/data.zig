@@ -125,7 +125,7 @@ pub const components = [_]Component{
                 .has_children = true,
                 .meta = ComponentMeta{
                     .prop_items = &.{
-                        .{ .key = "title", .value = "\"ZX Playground\"", .meta = "(Ref)" },
+                        .{ .key = "title", .value = "\"Ziex Playground\"", .meta = "(Ref)" },
                         .{ .key = "showNav", .value = "true", .meta = "(Ref)" },
                         .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
                         .{
@@ -134,7 +134,7 @@ pub const components = [_]Component{
                             .meta = "(Ref)",
                             .children = &[_]StateItem{
                                 .{ .key = "src", .value = "\"/assets/logo.svg\"", .meta = "" },
-                                .{ .key = "alt", .value = "\"ZX Logo\"", .meta = "" },
+                                .{ .key = "alt", .value = "\"Ziex Logo\"", .meta = "" },
                             },
                         },
                         .{
