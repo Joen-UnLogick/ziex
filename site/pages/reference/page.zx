@@ -294,7 +294,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     };
     return (
         <div @allocator={allocator}>
-            <Introduction />
+            // <Introduction />
             <section id="expressions" class="section">
                 <h2>Expressions</h2>
                 <p>Use curly braces <code>{expr_syntax}</code> to embed any Zig expression. Values are automatically formatted based on their type and HTML-escaped for safety.</p>

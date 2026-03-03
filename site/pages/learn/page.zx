@@ -307,45 +307,52 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
 
 fn EditorSetup(allocator: zx.Allocator) zx.Component {
     return (
-        <>
-            <section id="vscode" class="section" @allocator={allocator}>
-                <h2>VS Code / Cursor</h2>
-                <p>Install the official ZX extension for the best development experience.</p>
-                <p>Install from:</p>
-                <ul>
-                    <li><a href="https://marketplace.visualstudio.com/items?itemName=ziex.ziex" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a></li>
-                    <li><a href="https://open-vsx.org/extension/ziex/ziex" target="_blank" rel="noopener noreferrer">Open VSX Registry</a> (for Cursor and other forks)</li>
-                </ul>
-                <p>Or from command palette: <code>ext install ziex.ziex</code></p>
-                <p><strong>Features:</strong> Syntax highlighting, IntelliSense, error diagnostics, bracket matching, and code folding.</p>
-            </section>
-
-            <section id="neovim" class="section">
-                <h2>Neovim</h2>
-                <p>With <a href="https://github.com/folke/lazy.nvim" target="_blank" rel="noopener noreferrer">lazy.nvim</a>, add <code>nurulhudaapon/ziex</code> as a plugin with <code>nvim-treesitter</code> as a dependency.</p>
-                <p>See the <a href=`{zx.info.repository}/tree/main/ide/neovim` target="_blank" rel="noopener noreferrer">Neovim setup guide</a> for the full configuration.</p>
-                <p><strong>Features:</strong> Tree-sitter syntax highlighting, LSP support, and file icons.</p>
-            </section>
-
-            <section id="helix" class="section">
-                <h2>Helix</h2>
-                <p>See the <a href=`{zx.info.repository}/tree/main/ide/helix` target="_blank" rel="noopener noreferrer">Helix setup guide</a> for the full configuration.</p>
-                <p><strong>Features:</strong> Tree-sitter syntax highlighting, and LSP support.</p>
-            </section>
-
-            <section id="zed" class="section">
-                <h2>Zed</h2>
-                <p>Manual installation (pending marketplace approval):</p>
-                <ol>
-                    <li>Clone: <code>git clone {zx.info.repository}</code></li>
-                    <li>Open Extensions panel (Cmd/Ctrl + Shift + P)</li>
-                    <li>Select "Install Dev Extension"</li>
-                    <li>Navigate to <code>ide/zed</code> in the cloned repo</li>
-                </ol>
-                <p>See the <a href=`{zx.info.repository}/tree/main/ide/zed` target="_blank" rel="noopener noreferrer">Zed setup guide</a> for details.</p>
-            </section>
+        <section id="editor-setup" class="section" @allocator={allocator}>
+            <h2>Editor Setup</h2>
+            <p>Set up your editor for the best ZX development experience.</p>
+            <div>
+                <div class="simple-tab-header">
+                    <input type="radio" id="tab-editor-vscode" name="editor-setup" class="simple-tab-radio" checked="true" aria-label="VS Code / Cursor" />
+                    <input type="radio" id="tab-editor-neovim" name="editor-setup" class="simple-tab-radio" aria-label="Neovim" />
+                    <input type="radio" id="tab-editor-helix" name="editor-setup" class="simple-tab-radio" aria-label="Helix" />
+                    <input type="radio" id="tab-editor-zed" name="editor-setup" class="simple-tab-radio" aria-label="Zed" />
+                    <label for="tab-editor-vscode" class="simple-tab-label">VS Code</label>
+                    <label for="tab-editor-neovim" class="simple-tab-label">Neovim</label>
+                    <label for="tab-editor-helix" class="simple-tab-label">Helix</label>
+                    <label for="tab-editor-zed" class="simple-tab-label">Zed</label>
+                </div>
+                <div class="simple-tab-content" id="content-editor-vscode">
+                    <p>Install the official ZX extension for the best development experience.</p>
+                    <p>Install from:</p>
+                    <ul>
+                        <li><a href="https://marketplace.visualstudio.com/items?itemName=ziex.ziex" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a></li>
+                        <li><a href="https://open-vsx.org/extension/ziex/ziex" target="_blank" rel="noopener noreferrer">Open VSX Registry</a> (for Cursor and other forks)</li>
+                    </ul>
+                    <p>Or from command palette: <code>ext install ziex.ziex</code></p>
+                    <p><strong>Features:</strong> Syntax highlighting, IntelliSense, error diagnostics, bracket matching, and code folding.</p>
+                </div>
+                <div class="simple-tab-content" id="content-editor-neovim">
+                    <p>With <a href="https://github.com/folke/lazy.nvim" target="_blank" rel="noopener noreferrer">lazy.nvim</a>, add <code>nurulhudaapon/ziex</code> as a plugin with <code>nvim-treesitter</code> as a dependency.</p>
+                    <p>See the <a href=`{zx.info.repository}/tree/main/ide/neovim` target="_blank" rel="noopener noreferrer">Neovim setup guide</a> for the full configuration.</p>
+                    <p><strong>Features:</strong> Tree-sitter syntax highlighting, LSP support, and file icons.</p>
+                </div>
+                <div class="simple-tab-content" id="content-editor-helix">
+                    <p>See the <a href=`{zx.info.repository}/tree/main/ide/helix` target="_blank" rel="noopener noreferrer">Helix setup guide</a> for the full configuration.</p>
+                    <p><strong>Features:</strong> Tree-sitter syntax highlighting, and LSP support.</p>
+                </div>
+                <div class="simple-tab-content" id="content-editor-zed">
+                    <p>Manual installation (pending marketplace approval):</p>
+                    <ol>
+                        <li>Clone: <code>git clone {zx.info.repository}</code></li>
+                        <li>Open Extensions panel (Cmd/Ctrl + Shift + P)</li>
+                        <li>Select "Install Dev Extension"</li>
+                        <li>Navigate to <code>ide/zed</code> in the cloned repo</li>
+                    </ol>
+                    <p>See the <a href=`{zx.info.repository}/tree/main/ide/zed` target="_blank" rel="noopener noreferrer">Zed setup guide</a> for details.</p>
+                </div>
+            </div>
             <script src=`/assets/docs.js?v={zx.info.version}` defer="true"></script>
-        </>
+        </section>
     );
 }
 

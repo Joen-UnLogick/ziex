@@ -13,14 +13,14 @@ const tabs = [_]SidebarProps.Tab{
 };
 
 const categories = [_]SidebarProps.Category{
+    // .{
+    //     .title = "REFERENCE",
+    //     .sections = &[_]SidebarProps.Section{
+    //         .{ .title = "Overview", .href = "/reference#overview" },
+    //     },
+    // },
     .{
-        .title = "REFERENCE",
-        .sections = &[_]SidebarProps.Section{
-            .{ .title = "Overview", .href = "/reference#overview" },
-        },
-    },
-    .{
-        .title = "CORE CONCEPTS",
+        .title = "CORE",
         .sections = &[_]SidebarProps.Section{
             .{
                 .title = "Expressions",
@@ -160,7 +160,7 @@ const categories = [_]SidebarProps.Category{
 };
 
 const toc_links = [_]SidebarProps.Link{
-    .{ .href = "/reference#overview", .text = "Overview" },
+    // .{ .href = "/reference#overview", .text = "Overview" },
     .{ .href = "/reference#expressions", .text = "Expressions" },
     .{ .href = "/reference#control-flow", .text = "Control Flow" },
     .{ .href = "/reference#components", .text = "Components" },

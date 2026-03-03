@@ -461,7 +461,7 @@ body {
 /* Sidebar Tabs (Learn / Reference) */
 .sidebar-tabs {
     display: flex;
-    padding: 0.75rem 0.75rem 0;
+    padding: 0.4rem 0.75rem 0;
     gap: 0.25rem;
     border-bottom: 1px solid var(--border-color);
     background: var(--panel-bg);
@@ -473,8 +473,8 @@ body {
 .sidebar-tab {
     flex: 1;
     text-align: center;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--subtitle-color);
     text-decoration: none;
@@ -528,7 +528,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.55rem 0.85rem;
+    padding: 0.55rem 1.5rem;
     margin: 0 0.75rem;
     color: var(--text-color);
     text-decoration: none;
@@ -1609,7 +1609,11 @@ code[class*="language-"] {
 #tab-control-if:checked ~ .simple-tab-label[for="tab-control-if"],
 #tab-control-switch:checked ~ .simple-tab-label[for="tab-control-switch"],
 #tab-control-for:checked ~ .simple-tab-label[for="tab-control-for"],
-#tab-control-while:checked ~ .simple-tab-label[for="tab-control-while"] {
+#tab-control-while:checked ~ .simple-tab-label[for="tab-control-while"],
+#tab-editor-vscode:checked ~ .simple-tab-label[for="tab-editor-vscode"],
+#tab-editor-neovim:checked ~ .simple-tab-label[for="tab-editor-neovim"],
+#tab-editor-helix:checked ~ .simple-tab-label[for="tab-editor-helix"],
+#tab-editor-zed:checked ~ .simple-tab-label[for="tab-editor-zed"] {
     color: var(--link-color);
     border-bottom-color: var(--link-color);
     border-bottom-width: 2px;
@@ -1624,7 +1628,11 @@ div:has(#tab-manual:checked) #content-manual,
 div:has(#tab-control-if:checked) #control-content-if,
 div:has(#tab-control-switch:checked) #control-content-switch,
 div:has(#tab-control-for:checked) #control-content-for,
-div:has(#tab-control-while:checked) #control-content-while {
+div:has(#tab-control-while:checked) #control-content-while,
+div:has(#tab-editor-vscode:checked) #content-editor-vscode,
+div:has(#tab-editor-neovim:checked) #content-editor-neovim,
+div:has(#tab-editor-helix:checked) #content-editor-helix,
+div:has(#tab-editor-zed:checked) #content-editor-zed {
     display: block;
 }
 
