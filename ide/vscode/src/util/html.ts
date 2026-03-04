@@ -268,7 +268,10 @@ export function registerHtmlAutoCompletion(
 
     // Check for ZX builtin attributes (@allocator, @rendering, @escaping)
     const line = doc.lineAt(pos.line).text;
-    const wordRange = doc.getWordRangeAtPosition(pos, /@[a-zA-Z_][a-zA-Z0-9_]*/);
+    const wordRange = doc.getWordRangeAtPosition(
+      pos,
+      /@[a-zA-Z_][a-zA-Z0-9_]*/,
+    );
     if (wordRange) {
       const word = doc.getText(wordRange);
       const builtinDoc = ZX_BUILTIN_ATTRIBUTES[word];
@@ -280,7 +283,10 @@ export function registerHtmlAutoCompletion(
     }
 
     // Check if hovering over a builtin attribute value pattern (e.g., .react, .client, .none)
-    const valueRange = doc.getWordRangeAtPosition(pos, /\.[a-zA-Z_][a-zA-Z0-9_]*/);
+    const valueRange = doc.getWordRangeAtPosition(
+      pos,
+      /\.[a-zA-Z_][a-zA-Z0-9_]*/,
+    );
     if (valueRange) {
       const value = doc.getText(valueRange);
       // Find which builtin attribute this value belongs to by looking backwards on the line

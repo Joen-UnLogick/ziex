@@ -6,8 +6,11 @@ import { JsonRpcMessage, LspClient } from "./lsp";
 import { indentWithTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { editorTheme, editorHighlightStyle } from "./theme.ts";
+// @ts-ignore
 import zigMainSource from './template/main.zig' with { type: "text" };
+// @ts-ignores
 import zxModSource from './template/Playground.zx' with { type: "text" };
+// @ts-ignore
 import zxstylecss from './template/style.css' with { type: "text" };
 import { fileManager, PlaygroundFile } from "./file";
 import { html } from "@codemirror/lang-html";

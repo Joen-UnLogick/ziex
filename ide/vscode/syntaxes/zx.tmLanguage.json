@@ -266,6 +266,11 @@
         }
       ]
     },
+    "zig-multiline-string": {
+      "comment": "Zig multiline string literal lines (\\\\...) — must match before HTML tags",
+      "name": "string.quoted.other.multiline.zig",
+      "match": "^\\s*\\\\\\\\.*$"
+    },
     "zx-expression": {
       "patterns": [
         {
@@ -283,6 +288,9 @@
             }
           },
           "patterns": [
+            {
+              "include": "#zig-multiline-string"
+            },
             {
               "include": "#zx"
             },
@@ -332,6 +340,9 @@
         }
       },
       "patterns": [
+        {
+          "include": "#zig-multiline-string"
+        },
         {
           "include": "#zx"
         },

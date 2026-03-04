@@ -21,7 +21,10 @@ function getTranspiledPath(zxPath: string, workspaceRoot: string): string {
   return path.join(getTranspiledDir(workspaceRoot), zigRelativePath);
 }
 
-export function getOriginalZxPath(zigPath: string, workspaceRoot: string): string | null {
+export function getOriginalZxPath(
+  zigPath: string,
+  workspaceRoot: string,
+): string | null {
   const transpiledDir = getTranspiledDir(workspaceRoot);
   if (!zigPath.startsWith(transpiledDir)) return null;
   const relativePath = path.relative(transpiledDir, zigPath);
@@ -29,7 +32,10 @@ export function getOriginalZxPath(zigPath: string, workspaceRoot: string): strin
   return path.join(workspaceRoot, zxRelativePath);
 }
 
-export function isTranspiledPath(filePath: string, workspaceRoot: string): boolean {
+export function isTranspiledPath(
+  filePath: string,
+  workspaceRoot: string,
+): boolean {
   return filePath.startsWith(getTranspiledDir(workspaceRoot));
 }
 
@@ -46,7 +52,10 @@ export interface LineOffsetMap {
 }
 
 export function createLineOffsetMap(originalContent: string): LineOffsetMap {
-  const lineOffsets = new Map<number, Array<{ column: number; cumulativeOffset: number }>>();
+  const lineOffsets = new Map<
+    number,
+    Array<{ column: number; cumulativeOffset: number }>
+  >();
   const lines = originalContent.split("\n");
   let cumulativeOffset = 0;
 
@@ -72,7 +81,7 @@ export function createLineOffsetMap(originalContent: string): LineOffsetMap {
 export function adjustColumnToOriginal(
   line: number,
   transformedColumn: number,
-  offsetMap: LineOffsetMap
+  offsetMap: LineOffsetMap,
 ): { column: number; newGlobalOffset: number } {
   let globalOffset = 0;
   for (let i = 0; i < line; i++) {
@@ -113,7 +122,10 @@ export function clearOffsetMap(uri: string): void {
   documentOffsetMaps.delete(uri);
 }
 
-export function adjustSemanticTokens(data: number[], offsetMap: LineOffsetMap): number[] {
+export function adjustSemanticTokens(
+  data: number[],
+  offsetMap: LineOffsetMap,
+): number[] {
   const adjusted = [...data];
   let currentLine = 0;
   let prevLineOffset = 0;
@@ -132,7 +144,11 @@ export function adjustSemanticTokens(data: number[], offsetMap: LineOffsetMap): 
       absoluteStartChar = prevLineOffset + deltaStartChar;
     }
 
-    const { column: adjustedColumn } = adjustColumnToOriginal(currentLine, absoluteStartChar, offsetMap);
+    const { column: adjustedColumn } = adjustColumnToOriginal(
+      currentLine,
+      absoluteStartChar,
+      offsetMap,
+    );
 
     if (deltaLine > 0) {
       adjusted[i + 1] = adjustedColumn;
@@ -146,7 +162,10 @@ export function adjustSemanticTokens(data: number[], offsetMap: LineOffsetMap): 
   return adjusted;
 }
 
-function createTranspiledFile(zxPath: string, workspaceRoot: string): string | null {
+function createTranspiledFile(
+  zxPath: string,
+  workspaceRoot: string,
+): string | null {
   const zigPath = getTranspiledPath(zxPath, workspaceRoot);
 
   try {
@@ -183,7 +202,9 @@ function removeTranspiledFile(zxPath: string, workspaceRoot: string): void {
   }
 }
 
-export class ZxVirtualDocumentProvider implements vscode.TextDocumentContentProvider {
+export class ZxVirtualDocumentProvider
+  implements vscode.TextDocumentContentProvider
+{
   private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
   readonly onDidChange = this._onDidChange.event;
   private workspaceRoot: string;
@@ -215,7 +236,10 @@ export class ZxVirtualDocumentProvider implements vscode.TextDocumentContentProv
     createTranspiledFile(zxPath, this.workspaceRoot);
 
     const zigPath = getTranspiledPath(zxPath, this.workspaceRoot);
-    const virtualUri = vscode.Uri.from({ scheme: ZX_VIRTUAL_SCHEME, path: zigPath });
+    const virtualUri = vscode.Uri.from({
+      scheme: ZX_VIRTUAL_SCHEME,
+      path: zigPath,
+    });
     this._onDidChange.fire(virtualUri);
   }
 }
@@ -243,7 +267,9 @@ export function createUriConverters(workspaceRoot: string) {
   };
 }
 
-export function getVirtualDocumentProvider(workspaceRoot: string): ZxVirtualDocumentProvider {
+export function getVirtualDocumentProvider(
+  workspaceRoot: string,
+): ZxVirtualDocumentProvider {
   if (!virtualDocProvider) {
     virtualDocProvider = new ZxVirtualDocumentProvider(workspaceRoot);
   }
@@ -251,7 +277,10 @@ export function getVirtualDocumentProvider(workspaceRoot: string): ZxVirtualDocu
 }
 
 async function syncAllZxFiles(workspaceRoot: string): Promise<void> {
-  const files = await vscode.workspace.findFiles("**/*.zx", "**/node_modules/**");
+  const files = await vscode.workspace.findFiles(
+    "**/*.zx",
+    "**/node_modules/**",
+  );
   for (const file of files) {
     createTranspiledFile(file.fsPath, workspaceRoot);
   }
@@ -272,14 +301,19 @@ function getWorkspaceRoot(): string | null {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || null;
 }
 
-export function registerZxFileProviders(context: vscode.ExtensionContext): void {
+export function registerZxFileProviders(
+  context: vscode.ExtensionContext,
+): void {
   const workspaceRoot = getWorkspaceRoot();
   if (!workspaceRoot) return;
 
   const provider = getVirtualDocumentProvider(workspaceRoot);
 
   context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider(ZX_VIRTUAL_SCHEME, provider)
+    vscode.workspace.registerTextDocumentContentProvider(
+      ZX_VIRTUAL_SCHEME,
+      provider,
+    ),
   );
 
   const watcher = vscode.workspace.createFileSystemWatcher("**/*.zx");
@@ -306,7 +340,7 @@ export function registerZxFileProviders(context: vscode.ExtensionContext): void 
         createTranspiledFile(doc.fileName, workspaceRoot);
         provider.refresh(doc.uri);
       }
-    })
+    }),
   );
 
   syncAllZxFiles(workspaceRoot);

@@ -54,6 +54,35 @@
       {
         "command": "zx.toggleZigExpressionFormatting",
         "title": "ZX: Toggle embedded Zig expression formatting"
+      },
+      {
+        "command": "zx.toggleMultilineStringLiteral",
+        "title": "ZX: Toggle multiline string literal"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "zx.toggleMultilineStringLiteral",
+        "key": "alt+m",
+        "mac": "alt+m",
+        "when": "editorTextFocus && editorLangId =~ /^(zx|zig)$/"
+      },
+      {
+        "command": "zx.multilineSmartBackspace",
+        "key": "backspace",
+        "when": "editorTextFocus && !editorHasSelection && editorLangId =~ /^(zx|zig)$/"
+      },
+      {
+        "command": "zx.copyFromMultilineString",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "editorTextFocus && editorHasSelection && editorLangId =~ /^(zx|zig)$/"
+      },
+      {
+        "command": "zx.pasteInMultilineString",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
+        "when": "editorTextFocus && editorLangId =~ /^(zx|zig)$/"
       }
     ],
     "languages": [

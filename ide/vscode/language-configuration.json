@@ -34,6 +34,27 @@
   "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
   "onEnterRules": [
     {
+      "beforeText": "^\\s*//!.*$",
+      "action": {
+        "indent": "none",
+        "appendText": "//! "
+      }
+    },
+    {
+      "beforeText": "^\\s*///.*$",
+      "action": {
+        "indent": "none",
+        "appendText": "/// "
+      }
+    },
+    {
+      "beforeText": "^\\s*\\\\\\\\.*$",
+      "action": {
+        "indent": "none",
+        "appendText": "\\\\"
+      }
+    },
+    {
       "beforeText": "^\\s*<([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<>]*$",
       "afterText": "^\\s*</([_:\\w][_:\\w-.\\d]*)>",
       "action": {

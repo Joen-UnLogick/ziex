@@ -10,6 +10,7 @@ import {
 
 import { getZLSPath } from "./util/util";
 import { registerHtmlAutoCompletion } from "./util/html";
+import { activateMultilineStringDecorator } from "./util/string";
 import {
   registerZxFileProviders,
   disposeZxFileProviders,
@@ -27,7 +28,7 @@ const execFile = util.promisify(childProcess.execFile);
 
 function remapLocationsToZx(
   result: vscode.Definition | vscode.LocationLink[] | null | undefined,
-  workspaceRoot: string
+  workspaceRoot: string,
 ): vscode.Definition | vscode.LocationLink[] | null | undefined {
   if (!result) return result;
 
@@ -42,14 +43,17 @@ function remapLocationsToZx(
   const remapLocation = (loc: vscode.Location): vscode.Location =>
     new vscode.Location(remapUri(loc.uri), loc.range);
 
-  const remapLocationLink = (link: vscode.LocationLink): vscode.LocationLink => ({
+  const remapLocationLink = (
+    link: vscode.LocationLink,
+  ): vscode.LocationLink => ({
     ...link,
     targetUri: remapUri(link.targetUri),
   });
 
   if (Array.isArray(result)) {
     return result.map((item) => {
-      if ("targetUri" in item) return remapLocationLink(item as vscode.LocationLink);
+      if ("targetUri" in item)
+        return remapLocationLink(item as vscode.LocationLink);
       if ("uri" in item) return remapLocation(item as vscode.Location);
       return item;
     });
@@ -64,12 +68,16 @@ export function activate(context: ExtensionContext) {
   const serverCommand = getZLSPath(context);
 
   if (!serverCommand) {
-    window.showErrorMessage("Failed to start Ziex Language Server: ZLS not found");
+    window.showErrorMessage(
+      "Failed to start Ziex Language Server: ZLS not found",
+    );
     return;
   }
 
   const serverOptions: ServerOptions = { command: serverCommand };
-  const outputChannel = window.createOutputChannel("Ziex Language Server", { log: true });
+  const outputChannel = window.createOutputChannel("Ziex Language Server", {
+    log: true,
+  });
   const workspaceRoot = workspace.workspaceFolders?.[0]?.uri.fsPath || "";
 
   const clientOptions: LanguageClientOptions = {
@@ -90,19 +98,31 @@ export function activate(context: ExtensionContext) {
       },
 
       async provideDefinition(document, position, token, next) {
-        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+        return remapLocationsToZx(
+          await next(document, position, token),
+          workspaceRoot,
+        );
       },
 
       async provideTypeDefinition(document, position, token, next) {
-        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+        return remapLocationsToZx(
+          await next(document, position, token),
+          workspaceRoot,
+        );
       },
 
       async provideDeclaration(document, position, token, next) {
-        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+        return remapLocationsToZx(
+          await next(document, position, token),
+          workspaceRoot,
+        );
       },
 
       async provideImplementation(document, position, token, next) {
-        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+        return remapLocationsToZx(
+          await next(document, position, token),
+          workspaceRoot,
+        );
       },
 
       async provideReferences(document, position, context, token, next) {
@@ -110,8 +130,15 @@ export function activate(context: ExtensionContext) {
         if (!result) return result;
         return result.map((loc) => {
           if (isTranspiledPath(loc.uri.fsPath, workspaceRoot)) {
-            const originalPath = getOriginalZxPath(loc.uri.fsPath, workspaceRoot);
-            if (originalPath) return new vscode.Location(vscode.Uri.file(originalPath), loc.range);
+            const originalPath = getOriginalZxPath(
+              loc.uri.fsPath,
+              workspaceRoot,
+            );
+            if (originalPath)
+              return new vscode.Location(
+                vscode.Uri.file(originalPath),
+                loc.range,
+              );
           }
           return loc;
         });
@@ -119,13 +146,20 @@ export function activate(context: ExtensionContext) {
 
       handleDiagnostics(uri, diagnostics, next) {
         const filtered = diagnostics.filter(
-          (d) => !(d.severity === vscode.DiagnosticSeverity.Error && d.message === "expected expression, found '<'")
+          (d) =>
+            !(
+              d.severity === vscode.DiagnosticSeverity.Error &&
+              d.message === "expected expression, found '<'"
+            ),
         );
         next(uri, filtered);
       },
 
       didOpen: async (document, next) => {
-        if (document.languageId === "zx" || document.uri.fsPath.endsWith(".zx")) {
+        if (
+          document.languageId === "zx" ||
+          document.uri.fsPath.endsWith(".zx")
+        ) {
           const originalText = document.getText();
           const transformedText = transformZxImportsToZig(originalText);
           getOffsetMap(document.uri.toString(), originalText);
@@ -139,7 +173,10 @@ export function activate(context: ExtensionContext) {
 
       didChange: async (event, next) => {
         const document = event.document;
-        if (document.languageId === "zx" || document.uri.fsPath.endsWith(".zx")) {
+        if (
+          document.languageId === "zx" ||
+          document.uri.fsPath.endsWith(".zx")
+        ) {
           const originalText = document.getText();
           const transformedText = transformZxImportsToZig(originalText);
           getOffsetMap(document.uri.toString(), originalText);
@@ -148,7 +185,10 @@ export function activate(context: ExtensionContext) {
             return next({
               ...event,
               document: { ...document, getText: () => transformedText },
-              contentChanges: event.contentChanges.map((c) => ({ ...c, text: transformZxImportsToZig(c.text) })),
+              contentChanges: event.contentChanges.map((c) => ({
+                ...c,
+                text: transformZxImportsToZig(c.text),
+              })),
             } as any);
           }
         }
@@ -158,13 +198,25 @@ export function activate(context: ExtensionContext) {
       provideDocumentSemanticTokens: async (document, token, next) => {
         const result = await next(document, token);
 
-        if (result && (document.languageId === "zx" || document.uri.fsPath.endsWith(".zx"))) {
+        if (
+          result &&
+          (document.languageId === "zx" || document.uri.fsPath.endsWith(".zx"))
+        ) {
           const originalText = document.getText();
           if (originalText.includes('.zx"')) {
-            const offsetMap = getOffsetMap(document.uri.toString(), originalText);
+            const offsetMap = getOffsetMap(
+              document.uri.toString(),
+              originalText,
+            );
             if ("data" in result && result.data) {
-              const adjustedData = adjustSemanticTokens(Array.from(result.data), offsetMap);
-              return new vscode.SemanticTokens(new Uint32Array(adjustedData), result.resultId);
+              const adjustedData = adjustSemanticTokens(
+                Array.from(result.data),
+                offsetMap,
+              );
+              return new vscode.SemanticTokens(
+                new Uint32Array(adjustedData),
+                result.resultId,
+              );
             }
           }
         }
@@ -174,11 +226,17 @@ export function activate(context: ExtensionContext) {
     },
   };
 
-  client = new LanguageClient("zx-language-server", "Ziex Language Server", serverOptions, clientOptions);
+  client = new LanguageClient(
+    "zx-language-server",
+    "Ziex Language Server",
+    serverOptions,
+    clientOptions,
+  );
   client.start();
 
   registerHtmlAutoCompletion(context, "zx");
   registerZxFileProviders(context);
+  activateMultilineStringDecorator(context);
 }
 
 interface BuildStep {
@@ -189,11 +247,11 @@ interface BuildStep {
 function parseBuildSteps(output: string): BuildStep[] {
   const steps: BuildStep[] = [];
   const lines = output.split("\n");
-  
+
   for (const line of lines) {
     if (!line.trim()) continue;
     const trimmed = line.trimStart();
-    
+
     const parts = trimmed.split(/\s{2,}/);
     if (parts.length >= 2) {
       const namePart = parts[0].replace(/\s*\([^)]+\)\s*$/, "").trim();
@@ -203,7 +261,7 @@ function parseBuildSteps(output: string): BuildStep[] {
       }
     }
   }
-  
+
   return steps;
 }
 
@@ -215,7 +273,7 @@ async function hasZxBuildStep(cwd: string): Promise<boolean> {
       timeout: 5000,
     });
     const steps = parseBuildSteps(stdout);
-    return steps.some(step => step.name === "zx");
+    return steps.some((step) => step.name === "zx");
   } catch (error: any) {
     console.error(error);
     return false;
@@ -231,7 +289,7 @@ async function showZxInstallationError(): Promise<void> {
   const selection = await window.showErrorMessage(
     "Ziex CLI not found. Please install it to use code formatting.",
     "Install Now",
-    "Copy Installation Script"
+    "Copy Installation Script",
   );
 
   if (selection === "Copy Installation Script") {
@@ -246,7 +304,7 @@ async function showZxInstallationError(): Promise<void> {
 
 async function formatWithZxCli(
   document: vscode.TextDocument,
-  token: vscode.CancellationToken
+  token: vscode.CancellationToken,
 ): Promise<vscode.TextEdit[] | null> {
   const abortController = new AbortController();
   token.onCancellationRequested(() => abortController.abort());
@@ -255,10 +313,12 @@ async function formatWithZxCli(
   const useZigBuild = cwd ? await hasZxBuildStep(cwd) : false;
 
   const originalText = document.getText();
-  
+
   let command = useZigBuild ? "zig" : "zx";
-  let args = useZigBuild ? ["build", "zx", "--", "fmt", "--stdio"] : ["fmt", "--stdio"];
-  
+  let args = useZigBuild
+    ? ["build", "zx", "--", "fmt", "--stdio"]
+    : ["fmt", "--stdio"];
+
   try {
     const promise = execFile(command, args, {
       cwd,
@@ -272,30 +332,48 @@ async function formatWithZxCli(
     if (!stdout || stdout === originalText) return null;
 
     const lastLineId = document.lineCount - 1;
-    const wholeDocument = new vscode.Range(0, 0, lastLineId, document.lineAt(lastLineId).text.length);
+    const wholeDocument = new vscode.Range(
+      0,
+      0,
+      lastLineId,
+      document.lineAt(lastLineId).text.length,
+    );
     return [new vscode.TextEdit(wholeDocument, stdout)];
   } catch (error: any) {
     if (token.isCancellationRequested) return null;
 
-    const message = error?.stderr?.toString()?.trim() || error?.message || String(error);
-    const isNotFound = message.includes("not found") || message.includes("ENOENT") || error.code === "ENOENT";
+    const message =
+      error?.stderr?.toString()?.trim() || error?.message || String(error);
+    const isNotFound =
+      message.includes("not found") ||
+      message.includes("ENOENT") ||
+      error.code === "ENOENT";
 
     // If zx CLI not found and we weren't already using zig build, try zig build as fallback
     if (isNotFound && !useZigBuild && cwd) {
       try {
-        const fallbackPromise = execFile("zig", ["build", "zx", "--", "fmt", "--stdio"], {
-          cwd,
-          maxBuffer: 10 * 1024 * 1024,
-          signal: abortController.signal,
-          timeout: 60000,
-        });
+        const fallbackPromise = execFile(
+          "zig",
+          ["build", "zx", "--", "fmt", "--stdio"],
+          {
+            cwd,
+            maxBuffer: 10 * 1024 * 1024,
+            signal: abortController.signal,
+            timeout: 60000,
+          },
+        );
         fallbackPromise.child.stdin?.end(originalText);
 
         const { stdout } = await fallbackPromise;
         if (!stdout || stdout === originalText) return null;
 
         const lastLineId = document.lineCount - 1;
-        const wholeDocument = new vscode.Range(0, 0, lastLineId, document.lineAt(lastLineId).text.length);
+        const wholeDocument = new vscode.Range(
+          0,
+          0,
+          lastLineId,
+          document.lineAt(lastLineId).text.length,
+        );
         return [new vscode.TextEdit(wholeDocument, stdout)];
       } catch {
         // Both methods failed, show installation error
@@ -307,7 +385,9 @@ async function formatWithZxCli(
       await showZxInstallationError();
     } else {
       const commandStr = useZigBuild ? "zig build zx -- fmt" : "zx fmt";
-      window.showErrorMessage(`Ziex: failed to format using '${commandStr}': ${message}`);
+      window.showErrorMessage(
+        `Ziex: failed to format using '${commandStr}': ${message}`,
+      );
     }
 
     return null;
