@@ -1,7 +1,6 @@
 pub const Client = @This();
 
 const window = @import("window.zig");
-pub const hydration = @import("hydration.zig");
 const is_wasm = window.is_wasm;
 
 /// Global instance counter for assigning unique IDs to component instances
@@ -69,7 +68,7 @@ pub const ComponentMeta = struct {
                 // Case 2: Component takes allocator and props - fn Component(allocator, props) Component
                 if (first_is_allocator and param_count == 2) {
                     const PropsType = FuncInfo.@"fn".params[1].type.?;
-                    const props = parsePropsFromJson(PropsType, allocator, props_json);
+                    const props = zx.prop.parse(PropsType, allocator, props_json);
                     return normalizeResult(func(allocator, props));
                 }
 
@@ -88,7 +87,7 @@ pub const ComponentMeta = struct {
                     if (@hasField(CtxType, "props")) {
                         const PropsFieldType = @FieldType(CtxType, "props");
                         if (PropsFieldType != void) {
-                            ctx.props = parsePropsFromJson(PropsFieldType, allocator, props_json);
+                            ctx.props = zx.prop.parse(PropsFieldType, allocator, props_json);
                         }
                     }
 
@@ -100,9 +99,6 @@ pub const ComponentMeta = struct {
             }
         }.wrapper;
     }
-
-    /// Parse props using the Hydrator module
-    const parsePropsFromJson = hydration.parseProps;
 };
 
 /// Key for the handler registry: (velement_id, event_type_hash)

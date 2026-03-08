@@ -470,7 +470,7 @@ fn killPort(port: []const u8) !void {
 }
 
 const allocator = std.testing.allocator;
-const test_util = @import("./../test_util.zig");
+const test_util = @import("./../util.zig");
 
 const std = @import("std");
 const zx = @import("zx");

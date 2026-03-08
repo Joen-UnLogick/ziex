@@ -648,7 +648,7 @@ var test_file_cache: ?TestFileCache = null;
 var gpa_state: ?std.heap.GeneralPurposeAllocator(.{}) = null;
 
 const native_os = @import("builtin").os.tag;
-const test_util = @import("./../test_util.zig");
+const test_util = @import("./../util.zig");
 const TestFileCache = test_util.TestFileCache;
 
 const std = @import("std");
