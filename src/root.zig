@@ -42,6 +42,7 @@ pub const info = @import("zx_info");
 pub const Allocator = std.mem.Allocator;
 pub const App = app_module.Server(void);
 pub const Server = app_module.Server;
+pub const server = app_module;
 pub const Edge = @import("runtime/edge/Edge.zig").Edge;
 pub const Client = @import("runtime/client/Client.zig");
 

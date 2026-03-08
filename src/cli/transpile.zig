@@ -745,7 +745,7 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool
     defer content.deinit();
     const writer = content.writer();
 
-    try writer.writeAll("pub const routes = [_]zx.App.Meta.Route{\n");
+    try writer.writeAll("pub const routes = [_]zx.server.ServerMeta.Route{\n");
     for (routes.items) |route| {
         try writeRoute(writer, route);
     }
@@ -766,7 +766,7 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool
     const escaped_path = try escapePathForZigString(allocator, path_to_use);
     defer allocator.free(escaped_path);
 
-    try writer.writeAll("pub const meta = zx.App.Meta{\n");
+    try writer.writeAll("pub const meta = zx.server.ServerMeta{\n");
     try writer.writeAll("    .routes = &routes,\n");
     try writer.print("    .rootdir = \"{s}\",\n", .{escaped_path});
     try writer.writeAll("};\n\n");
@@ -809,11 +809,11 @@ fn writeRoute(writer: anytype, route: Route) !void {
 
     // Page (optional for API-only routes)
     if (route.page_import) |page| {
-        try writer.print("{s}    .page = zx.App.Meta.page(@import(\"{s}\")),\n", .{ indent, page });
+        try writer.print("{s}    .page = zx.server.ServerMeta.page(@import(\"{s}\")),\n", .{ indent, page });
     }
 
     if (route.layout_import) |layout| {
-        try writer.print("{s}    .layout = zx.App.Meta.layout(@import(\"{s}\")),\n", .{ indent, layout });
+        try writer.print("{s}    .layout = zx.server.ServerMeta.layout(@import(\"{s}\")),\n", .{ indent, layout });
     }
 
     if (route.notfound_import) |notfound| {
@@ -848,18 +848,18 @@ fn writeRoute(writer: anytype, route: Route) !void {
     if (route.route_import) |route_import| {
         // Pass page module for method conflict validation when co-located
         if (route.page_import) |page_import| {
-            try writer.print("{s}    .route = zx.App.Meta.route(@import(\"{s}\"), @import(\"{s}\")),\n", .{ indent, route_import, page_import });
+            try writer.print("{s}    .route = zx.server.ServerMeta.route(@import(\"{s}\"), @import(\"{s}\")),\n", .{ indent, route_import, page_import });
         } else {
-            try writer.print("{s}    .route = zx.App.Meta.route(@import(\"{s}\"), null),\n", .{ indent, route_import });
+            try writer.print("{s}    .route = zx.server.ServerMeta.route(@import(\"{s}\"), null),\n", .{ indent, route_import });
         }
         try writer.print("{s}    .route_opts = getOptions(@import(\"{s}\"), zx.RouteOptions),\n", .{ indent, route_import });
     }
 
     // Proxy middleware (Proxy() cascades at runtime like layouts, PageProxy/RouteProxy don't cascade)
     if (route.proxy_import) |proxy_import| {
-        try writer.print("{s}    .proxy = zx.App.Meta.proxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
-        try writer.print("{s}    .page_proxy = zx.App.Meta.pageProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
-        try writer.print("{s}    .route_proxy = zx.App.Meta.routeProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
+        try writer.print("{s}    .proxy = zx.server.ServerMeta.proxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
+        try writer.print("{s}    .page_proxy = zx.server.ServerMeta.pageProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
+        try writer.print("{s}    .route_proxy = zx.server.ServerMeta.routeProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
     }
 
     try writer.print("{s}}},\n", .{indent});

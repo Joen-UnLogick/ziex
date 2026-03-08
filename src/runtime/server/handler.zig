@@ -1098,7 +1098,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             const query = try req.query();
             const is_meta = query.get("meta") != null;
             if (is_meta) {
-                const meta = try App.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
+                const meta = try zx.server.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
                 res.content_type = .JSON;
                 try meta.serializeRoutes(res.writer());
                 return;
@@ -1492,7 +1492,6 @@ const rndr = @import("render.zig");
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
-const Printer = zx.Printer;
 const App = zx.Server(void);
 const Request = @import("../core/Request.zig");
 const Response = @import("../core/Response.zig");

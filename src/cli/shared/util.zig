@@ -1,7 +1,7 @@
 const BIN_DIR = "zig-out" ++ std.fs.path.sep_str ++ "bin";
 
 /// Find the ZX executable from the bin directory
-pub fn findprogram(allocator: std.mem.Allocator, binpath: []const u8) !zx.App.SerilizableAppMeta {
+pub fn findprogram(allocator: std.mem.Allocator, binpath: []const u8) !SerilizableAppMeta {
     if (!std.mem.eql(u8, binpath, "")) {
         var app_meta = try inspectProgram(allocator, binpath);
         // defer std.zon.parse.free(allocator, app_meta);
@@ -41,7 +41,7 @@ pub fn findprogram(allocator: std.mem.Allocator, binpath: []const u8) !zx.App.Se
     return error.ProgramNotFound;
 }
 
-pub fn inspectProgram(allocator: std.mem.Allocator, binpath: []const u8) !zx.App.SerilizableAppMeta {
+pub fn inspectProgram(allocator: std.mem.Allocator, binpath: []const u8) !SerilizableAppMeta {
     var exe = std.process.Child.init(&.{ binpath, "--introspect" }, allocator);
     exe.stdout_behavior = .Pipe;
     exe.stderr_behavior = .Ignore;
@@ -63,7 +63,7 @@ pub fn inspectProgram(allocator: std.mem.Allocator, binpath: []const u8) !zx.App
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    const app_meta = try std.zon.parse.fromSlice(zx.App.SerilizableAppMeta, allocator, source_z, null, .{});
+    const app_meta = try std.zon.parse.fromSlice(SerilizableAppMeta, allocator, source_z, null, .{});
 
     return app_meta;
 }
@@ -181,3 +181,4 @@ const zx = @import("zx");
 const builtin = @import("builtin");
 const tui = @import("../../tui/main.zig");
 const log = std.log.scoped(.cli);
+const SerilizableAppMeta = zx.server.SerilizableAppMeta;

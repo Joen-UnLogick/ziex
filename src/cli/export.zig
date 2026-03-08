@@ -78,7 +78,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
                 if (static_params.items.len > 0) {
                     for (static_params.items) |expanded_path| {
-                        const expanded_route = zx.App.SerilizableAppMeta.Route{
+                        const expanded_route = zx.server.SerilizableAppMeta.Route{
                             .path = expanded_path,
                             .method = route.method,
                             .has_notfound = route.has_notfound,
@@ -150,7 +150,7 @@ fn processRoute(
     allocator: std.mem.Allocator,
     host: []const u8,
     port: u16,
-    route: zx.App.SerilizableAppMeta.Route,
+    route: zx.server.SerilizableAppMeta.Route,
     outdir: []const u8,
     printer: *tui.Printer,
     export_type: ExportType,
