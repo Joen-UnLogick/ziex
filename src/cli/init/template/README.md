@@ -4,8 +4,6 @@
 
 **[Documentation →](https://ziex.dev)**
 
----
-
 ## Getting Started
 
 ### 1. Install ZX CLI
@@ -28,8 +26,6 @@ winget install -e --id zig.zig # Windows
 [_Other platforms →_](https://ziglang.org/learn/getting-started/)
 
 
----
-
 ## Project
 
 ```
@@ -46,8 +42,6 @@ winget install -e --id zig.zig # Windows
 ├── build.zig.zon       # Zig package manager config
 └── README.md           # Project info
 ```
-
----
 
 ## Usage
 
@@ -87,13 +81,9 @@ All ZX CLI commands are available under `zig build zx -- [command]`. For example
 zig build zx -- fmt .
 ```
 
----
-
 ## Contributing
 
 Contributions are welcome! Feel free to open issues or pull requests. For feature requests, bug reports, or questions, see the [Ziex Repo](https://github.com/ziex-dev/ziex).
-
-
 
 ## Links
 
@@ -101,5 +91,5 @@ Contributions are welcome! Feel free to open issues or pull requests. For featur
 - [Discord](https://ziex.dev/r/discord)
 - [Topic on Ziggit](https://ziex.dev/r/ziggit)
 - [Project on Zig Discord Community](https://ziex.dev/r/zig-discord) (Join Zig Discord first: https://discord.gg/zig)
-- [GitHub](https://github.com/ziex-dev/ziex)
+- [GitHub](https://github.com/nurulhudaapon/ziex)
 - [Zig Language](https://ziglang.org/)

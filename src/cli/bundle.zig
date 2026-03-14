@@ -147,7 +147,7 @@ fn bundle(ctx: zli.CommandContext) !void {
 
     if (docker or docker_compose) {
         if (docker_compose) {
-            printer.footer("Now run {s}\n{s}ndocker compose up -d{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, tui.Colors.reset });
+            printer.footer("Now run {s}\n{s}docker compose up -d{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, tui.Colors.reset });
         } else {
             printer.footer("Now run {s}\n\n{s}docker build -t {s} . \ndocker run -p {d}:{d} {s}{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, bin_name, port, port, bin_name, tui.Colors.reset });
         }

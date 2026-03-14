@@ -110,7 +110,7 @@ esac
 
 GITHUB=${GITHUB-"https://github.com"}
 
-github_repo="$GITHUB/nurulhudaapon/zx"
+github_repo="$GITHUB/ziex-dev/ziex"
 
 # If AVX2 isn't supported, use the -baseline build
 case "$target" in
