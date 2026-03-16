@@ -65,9 +65,9 @@
 /* Playground IDE Styles — re-uses home.css design tokens */
 
 :root {
-    --zx-primary: #00d9ff;
-    --zx-primary-dark: #00a8cc;
-    --zx-primary-light: #33e0ff;
+    --zx-primary: #4ade80;
+    --zx-primary-dark: #16a34a;
+    --zx-primary-light: #86efac;
     --zx-secondary: #ff6b35;
     --zx-accent: #ffd23f;
     --zx-dark: #0a0a0a;

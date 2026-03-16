@@ -1,14 +1,23 @@
 const features = [_]Feature{
-    .{ .icon_fn = icons.Lightning, .title = "It's Fast", .description = "Significantly faster at SSR than many other frameworks." },
-    .{ .icon_fn = icons.Shield, .title = "Compile-time Safety", .description = "Bugs are caught early, before running your app." },
-    .{ .icon_fn = icons.PaintBrush, .title = "Familiar Syntax", .description = "Familiar JSX-like syntax, or plain HTML-style markup, with full access to Zig's control flow." },
-    .{ .icon_fn = icons.Server, .title = "Server-side Rendering", .description = "Render per request on the server for dynamic data, auth, and personalized pages for best performance and SEO." },
-    .{ .icon_fn = icons.Layers, .title = "Static Site Generation", .description = "Pre-render pages at build/export time into static HTML for fast CDN delivery." },
-    .{ .icon_fn = icons.Folder, .title = "File System Routing", .description = "Just put files in folders to create routes." },
-    .{ .icon_fn = icons.Server, .title = "API Routes", .description = "Create API endpoints by adding route.zig files to your project." },
-    .{ .icon_fn = icons.Monitor, .title = "Client-side Rendering", .description = "Optional client-side rendering for interactive experiences when you need it." },
-    .{ .icon_fn = icons.Flow, .title = "Control Flow in Zig's Syntax", .description = "if/else, for/while, and switch all work as expected. It's just Zig." },
-    .{ .icon_fn = icons.Wrench, .title = "Developer Tooling", .description = "CLI, hot reload, and editor extensions for the best DX." },
+    .{ .icon_fn = icons.Lightning, .title = "Fast Performance", .description = "Significantly faster at SSR than many other frameworks. Optimized for speed and low latency." },
+    // .{ .icon_fn = icons.Shield, .title = "Deterministic Safety", .description = "Built on Zig's safety features. Zero undefined behavior at runtime. Predictable and reliable." },
+    .{ .icon_fn = icons.Code, .title = "Familiar Syntax", .description = "Familiar JSX-like syntax, or plain HTML-style markup, with full access to Zig's control flow." },
+    // .{ .icon_fn = icons.Globe, .title = "Edge First", .description = "Native support for WASI and Edge runtimes. Deploy to Cloudflare Workers or Vercel Edge with zero config." },
+    // .{ .icon_fn = icons.Package, .title = "Zero Dependencies", .description = "Self-contained framework. No node_modules, no external runtimes. Just one small binary." },
+    .{ .icon_fn = icons.Folder, .title = "File System Routing", .description = "Just put files in folders to create routes. Simple and intuitive structure for any scale." },
+    .{ .icon_fn = icons.Server, .title = "API Routes", .description = "Create API endpoints by adding route.zig files to your project. Native Zig performance." },
+    .{ .icon_fn = icons.Monitor, .title = "Hybrid Rendering", .description = "Optional client-side rendering for interactive experiences when you need it. SSR by default." },
+    .{ .icon_fn = icons.Flow, .title = "Control Flow", .description = "if/else, for/while, and switch all work as expected. It's just Zig syntax." },
+    .{ .icon_fn = icons.Wrench, .title = "Developer Tooling", .description = "CLI, hot reload, and editor extensions for the best development experience." },
+    .{ .icon_fn = icons.Rocket, .title = "Deploy Anywhere", .description = "Standalone binaries, Cloudflare, Vercel (soon), or any WASI-compatible host. Build once, run anywhere." },
+    .{ .icon_fn = icons.Layers, .title = "Predictable Memory", .description = "Explicit memory management. No GC pauses, no hidden allocations. Total control over your app's footprint." },
+ };
+
+const deployments = [_]Deployment{
+    .{ .icon_fn = icons.Terminal, .title = "Standalone", .description = "Deploy as a self-contained binary on Linux, macOS, or Windows. Statically linked with zero runtime dependencies." },
+    .{ .icon_fn = icons.Globe, .title = "Edge Anywhere", .description = "Deploy to the edge via WASI. Native support for Cloudflare and Vercel (soon)." },
+    .{ .icon_fn = icons.Layers, .title = "Static", .description = "Generate a statically pre-rendered site at build time. Deploy to GitHub Pages, Netlify, S3, or any CDN." },
+    .{ .icon_fn = icons.Package, .title = "Cross-Platform", .description = "Build for any target from any host. Easily cross-compile optimized binaries for x86_64, aarch64, and more." },
 };
 
 const benchmark_cwv_rows = [_]BenchmarkRow{
@@ -418,10 +427,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             <div class="hero-title-accent">/</div>
                         </div>
                         <p class="hero-subtitle">
-                            Build fast & type-safe full-stack web apps with Zig.
+                            The full-stack web framework for Zig.
                         </p>
                         <p class="hero-description">
-                            JSX like syntax or just like HTML with having access to Zig's control flow. 
+                            Compile-time safety, deterministic performance, and zero-dependency deployment. Build once, run everywhere.
                         </p>
                         <div class="hero-install">
                             <InstallCLI allocator={allocator} />
@@ -446,6 +455,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </section>
                 <BenchmarksSection eyebrow="" title="Performance" subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.` tabs={benchmark_tabs[0..]} />
+                // <ArchitectureSection allocator={allocator} />
+                <DeploymentSection allocator={allocator} />
+                // <TestingSection allocator={allocator} />
+                // <TechnicalSection allocator={allocator} />
                 <section class="feature-examples">
                     <div class="feature-examples-header">
                         <h2 class="section-title">Feature Examples</h2>
@@ -484,6 +497,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
+const Deployment = struct { icon_fn: *const fn (zx.Allocator) zx.Component, title: []const u8, description: []const u8 };
 const Feature = struct { icon_fn: *const fn (zx.Allocator) zx.Component, title: []const u8, description: []const u8 };
 fn FeatureCard(allocator: zx.Allocator, props: Feature) zx.Component {
     const IconComponent = props.icon_fn(allocator);
@@ -549,7 +563,7 @@ fn buildBenchTabStyles(allocator: zx.Allocator, container_id: []const u8, tabs: 
         out.appendSlice(tab.id) catch unreachable;
         out.appendSlice(":checked) label[for=\"") catch unreachable;
         out.appendSlice(tab.id) catch unreachable;
-        out.appendSlice("\"] { color: #0c0f14; background: linear-gradient(135deg, rgba(0, 217, 255, 0.9), rgba(0, 255, 200, 0.9)); border-color: transparent; box-shadow: 0 8px 20px rgba(0, 217, 255, 0.25); }\n") catch unreachable;
+        out.appendSlice("\"] { color: #0c0f14; background: #4ade80; border-color: transparent; box-shadow: 0 8px 20px rgba(74, 222, 128, 0.25); }\n") catch unreachable;
     }
 
     return allocator.dupe(u8, out.items) catch unreachable;
@@ -682,6 +696,137 @@ fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.
                 </div>
                 <div class="benchmarks-panels">
                     {for (props.tabs) |tab| (BenchmarksPanel(allocator, tab))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+const DeploymentSectionProps = struct {
+    allocator: zx.Allocator,
+};
+
+fn DeploymentSection(allocator: zx.Allocator, _: DeploymentSectionProps) zx.Component {
+    return (
+        <section @allocator={allocator} class="deployment">
+            <div class="deployment-header">
+                <h2 class="section-title">Deploy Anywhere.</h2>
+                <p class="section-subtitle">
+                    Ziex compiles to a single, statically linked binary or a WASI module, making it compatible with every major cloud provider and edge network.
+                </p>
+            </div>
+            <div class="deployment-grid">
+                {for (deployments) |d| (
+                    <div class="deployment-card">
+                        <div class="deployment-card-icon">{d.icon_fn(allocator)}</div>
+                        <h3 class="deployment-card-title">{d.title}</h3>
+                        <p class="deployment-card-text">{d.description}</p>
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+}
+
+fn ArchitectureSection(allocator: zx.Allocator, _: struct {}) zx.Component {
+    return (
+        <section @allocator={allocator} class="architecture">
+            <div class="architecture-header">
+                <h2 class="section-title">Zero Overhead Pipeline</h2>
+                <p class="section-subtitle">
+                    A request in Ziex travels through a streamlined pipeline written in native Zig code, bypassing the heavy overhead of interpreted runtimes.
+                </p>
+            </div>
+            <div class="architecture-diagram">
+                <div class="architecture-node">
+                    <div class="architecture-node-icon">{icons.Monitor(allocator)}</div>
+                    <span class="architecture-node-label">Browser</span>
+                </div>
+                <div class="architecture-connector"></div>
+                <div class="architecture-node">
+                    <div class="architecture-node-icon">{icons.Server(allocator)}</div>
+                    <span class="architecture-node-label">Ziex Edge</span>
+                </div>
+                <div class="architecture-connector"></div>
+                <div class="architecture-node">
+                    <div class="architecture-node-icon">{icons.Flow(allocator)}</div>
+                    <span class="architecture-node-label">Zig Router</span>
+                </div>
+                <div class="architecture-connector"></div>
+                <div class="architecture-node">
+                    <div class="architecture-node-icon">{icons.Lightning(allocator)}</div>
+                    <span class="architecture-node-label">Handler</span>
+                </div>
+                <div class="architecture-connector"></div>
+                <div class="architecture-node">
+                    <div class="architecture-node-icon">{icons.Layers(allocator)}</div>
+                    <span class="architecture-node-label">Response</span>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+fn TechnicalSection(allocator: zx.Allocator, _: struct {}) zx.Component {
+    return (
+        <section @allocator={allocator} class="technical">
+            <div class="technical-grid">
+                <div class="technical-card">
+                    <span class="technical-card-eyebrow">Reliability</span>
+                    <h3 class="technical-card-title">Statically Checked Components</h3>
+                    <p class="technical-card-text">
+                        Every tag, attribute, and component link is verified at compile-time. There are no runtime string-matching errors or missing props in production.
+                    </p>
+                </div>
+                <div class="technical-card">
+                    <span class="technical-card-eyebrow">Efficiency</span>
+                    <h3 class="technical-card-title">Deterministic Allocation</h3>
+                    <p class="technical-card-text">
+                        Ziex uses arena allocators for every request. Memory is allocated once and cleared instantly when the request ends. Zero garbage collection, zero memory leaks.
+                    </p>
+                </div>
+                <div class="technical-card">
+                    <span class="technical-card-eyebrow">Resilience</span>
+                    <h3 class="technical-card-title">WASI Isolation</h3>
+                    <p class="technical-card-text">
+                        Deploy your application inside a WASI sandbox. Hardware-level isolation ensures your app is secure and portable across any edge infrastructure.
+                    </p>
+                </div>
+                <div class="technical-card">
+                    <span class="technical-card-eyebrow">Speed</span>
+                    <h3 class="technical-card-title">Native Binary Size</h3>
+                    <p class="technical-card-text">
+                        A typical Ziex application is less than 5MB. No node_modules, no shared libraries. Just a high-performance binary ready to serve.
+                    </p>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+fn TestingSection(allocator: zx.Allocator, _: struct {}) zx.Component {
+    return (
+        <section @allocator={allocator} class="testing">
+            <div class="testing-header">
+                <h2 class="section-title">Deterministic Simulation Testing</h2>
+                <p class="section-subtitle">
+                    Ziex components are tested using deterministic simulation. We simulate thousands of edge cases, network failures, and race conditions in milliseconds.
+                </p>
+            </div>
+            <div class="testing-flex">
+                <div class="clock-panel">
+                    <div class="clock-wrapper">
+                        <div class="clock-hand clock-hand--slow"></div>
+                    </div>
+                    <span class="clock-label">Local Time</span>
+                    <span class="clock-time">Real World</span>
+                </div>
+                <div class="clock-panel">
+                    <div class="clock-wrapper">
+                        <div class="clock-hand clock-hand--fast"></div>
+                    </div>
+                    <span class="clock-label">Simulated Time</span>
+                    <span class="clock-time">10,000x Speed</span>
                 </div>
             </div>
         </section>
