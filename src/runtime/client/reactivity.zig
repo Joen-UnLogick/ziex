@@ -168,6 +168,16 @@ pub fn State(comptime T: type) type {
                 return state_ptr;
             }
         }
+
+        /// Look up an existing state by (component_id, slot). Used by StateContext in event handlers
+        /// where the state was already created during render.
+        pub fn getExisting(component_id: []const u8, slot: u32) *Self {
+            const key = StateKey{ .component_id = component_id, .slot = slot };
+            if (state_store.get(key)) |entry| {
+                return @ptrCast(@alignCast(entry.ptr));
+            }
+            @panic("State not found — ensure sc.state() is called in the same order as ctx.state()");
+        }
     };
 }
 

@@ -66,9 +66,22 @@ pub const ProxyContext = struct {
 pub const EventContext = struct {
     /// The JS event object reference (as a u64 NaN-boxed value)
     event_ref: u64,
+    /// The component ID to allow state access (set by ctx.bind())
+    _component_id: []const u8 = "",
+    /// The state slot index (set/reset by ctx.bind())
+    _state_index: u32 = 0,
 
     pub fn init(event_ref: u64) EventContext {
         return .{ .event_ref = event_ref };
+    }
+
+    /// Access the component's state.
+    /// Must be called in the same order as `ctx.state()` in the render function.
+    pub fn state(self: *EventContext, comptime T: type) *reactivity.State(T) {
+        if (self._component_id.len == 0) @panic("state() can only be called in a handler bound with ctx.bind()");
+        const slot = (1 << 20) + self._state_index;
+        self._state_index += 1;
+        return reactivity.State(T).getExisting(self._component_id, slot);
     }
 
     /// Get the underlying js.Object for the event
@@ -145,6 +158,41 @@ pub fn ComponentCtx(comptime PropsType: type) type {
             const slot = (1 << 20) + self._state_index;
             self._state_index += 1;
             return reactivity.State(T).getOrCreate(self.allocator, self._component_id, slot, initial) catch @panic("State(T).getOrCreate");
+        }
+
+        /// Bind an event handler with access to all of this component's state.
+        /// The handler receives a pointer to an `EventContext` which can access state via `e.state(T)`.
+        ///
+        /// Re-derive states in the handler using the same order as in the render function:
+        /// ```zig
+        /// pub fn MyComponent(ctx: *zx.ComponentCtx(void)) zx.Component {
+        ///     const count = ctx.state(i32, 0);
+        ///     return (<button onclick={ctx.bind(&onClick)}>Click</button>);
+        /// }
+        ///
+        /// fn onClick(e: *zx.EventContext) void {
+        ///     const count = e.state(i32);   // same order as render
+        ///     e.preventDefault();
+        ///     count.set(count.get() + 1);
+        /// }
+        /// ```
+        pub fn bind(self: *Self, comptime handler: *const fn (*EventContext) void) zx.EventHandler {
+            const alloc = if (platform == .browser) client_allocator else self.allocator;
+            const cid_ptr = alloc.create([]const u8) catch @panic("OOM");
+            cid_ptr.* = alloc.dupe(u8, self._component_id) catch @panic("OOM");
+
+            return .{
+                .callback = &struct {
+                    fn wrapper(ctx: *anyopaque, event: EventContext) void {
+                        const cid_p: *[]const u8 = @ptrCast(@alignCast(ctx));
+                        var e = event;
+                        e._component_id = cid_p.*;
+                        e._state_index = 0;
+                        handler(&e);
+                    }
+                }.wrapper,
+                .context = @ptrCast(cid_ptr),
+            };
         }
     };
 }

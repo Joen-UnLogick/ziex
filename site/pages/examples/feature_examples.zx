@@ -270,14 +270,15 @@ pub fn Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
     const count = ctx.state(i32, 0);
     return (
         <div @allocator={ctx.allocator} class="counter">
-            <button onclick={count.bind(&increment)}>
+            <button onclick={ctx.bind(&increment)}>
                 Click Me: {count.get()}
             </button>
         </div>
     );
 }
-fn increment(x: i32) i32 {
-    return x + 1;
+fn increment(e: *zx.EventContext) void {
+    const count = e.state(i32);
+    count.set(count.get() + 1);
 }
 
 // --- Imports ---
