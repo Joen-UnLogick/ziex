@@ -263,21 +263,21 @@ pub fn SocketOpen(ctx: zx.SocketOpenContext) !void {
 }
 
 // --- Client-side Rendering ---
-var count = zx.signal(i32, 0);
 pub fn Client(allocator: zx.Allocator) zx.Component {
     return (<Counter @{allocator} @rendering={.client} />);
 }
-pub fn Counter(allocator: zx.Allocator) zx.Component {
+pub fn Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
+    const count = ctx.state(i32, 0);
     return (
-        <div @{allocator} class="counter">
-            <button onclick={increment}>
-                Click Me: {&count}
+        <div @allocator={ctx.allocator} class="counter">
+            <button onclick={count.bind(&increment)}>
+                Click Me: {count.get()}
             </button>
         </div>
     );
 }
-fn increment(_: zx.EventContext) void {
-    count.set(count.get() + 1);
+fn increment(x: i32) i32 {
+    return x + 1;
 }
 
 // --- Imports ---

@@ -37,9 +37,12 @@ fn JoinScreen(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn ChatRoom(ctx: *zx.ComponentCtx(struct { username: []const u8 })) zx.Component {
+    const msgs_state = ctx.state(MessageList, .{});
+    messages = msgs_state;
+
     const connected = ws != null;
     const status_class = if (connected) "status-online" else "status-offline";
-    const msgs = messages.get();
+    const msgs = msgs_state.get();
 
     if (ws == null) {
         joinChat(ctx.props.username);
@@ -90,7 +93,7 @@ fn MessageItem(allocator: zx.Allocator, props: MessageItemProps) zx.Component {
 const Message = struct { username: []const u8, text: []const u8, is_system: bool };
 const MessageList = std.ArrayListUnmanaged(Message);
 
-var messages = zx.signal(MessageList, .{});
+var messages: ?*zx.State(MessageList) = null;
 var ws: ?zx.WebSocket = null;
 var current_username: []const u8 = "";
 
@@ -107,7 +110,10 @@ fn joinChat(username: []const u8) void {
         w.connect() catch {};
     }
 
-    zx.rerender();
+    // Trigger initial re-render to update connected status
+    if (messages) |msgs_state| {
+        msgs_state.set(msgs_state.get());
+    }
 }
 
 fn leaveChat(_: zx.EventContext) void {
@@ -119,10 +125,11 @@ fn leaveChat(_: zx.EventContext) void {
     }
     ws = null;
 
-    var msgs = messages.get();
-    msgs.deinit(zx.client_allocator);
-
-    messages.set(.{});
+    if (messages) |msgs_state| {
+        var msgs = msgs_state.get();
+        msgs.deinit(zx.client_allocator);
+        msgs_state.set(.{});
+    }
 
     // Clear input via DOM
     const document = zx.client.Document.init(zx.client_allocator);
@@ -148,7 +155,6 @@ fn sendMessage(e: zx.EventContext) void {
             input.ref.set("value", zx.Client.js.string("")) catch {};
         }
     }
-    zx.rerender();
 }
 
 fn onWsOpen(_: *zx.WebSocket) void {}
@@ -167,37 +173,39 @@ fn onWsMessage(_: *zx.WebSocket, event: zx.WebSocket.MessageEvent) void {
         text = zx.client_allocator.dupe(u8, data) catch return;
     }
 
-    var msgs = messages.get();
-    msgs.insert(zx.client_allocator, 0, .{
-        .username = username,
-        .text = text,
-        .is_system = is_system,
-    }) catch return;
-    messages.set(msgs);
-
-    zx.rerender();
+    if (messages) |msgs_state| {
+        var msgs = msgs_state.get();
+        msgs.insert(zx.client_allocator, 0, .{
+            .username = username,
+            .text = text,
+            .is_system = is_system,
+        }) catch return;
+        msgs_state.set(msgs);
+    }
 }
 
 fn onWsClose(_: *zx.WebSocket, _: zx.WebSocket.CloseEvent) void {
-    var msgs = messages.get();
-    msgs.insert(zx.client_allocator, 0, .{
-        .username = "",
-        .text = "Disconnected from server",
-        .is_system = true,
-    }) catch {};
-    messages.set(msgs);
-    zx.rerender();
+    if (messages) |msgs_state| {
+        var msgs = msgs_state.get();
+        msgs.insert(zx.client_allocator, 0, .{
+            .username = "",
+            .text = "Disconnected from server",
+            .is_system = true,
+        }) catch {};
+        msgs_state.set(msgs);
+    }
 }
 
 fn onWsError(_: *zx.WebSocket, _: zx.WebSocket.ErrorEvent) void {
-    var msgs = messages.get();
-    msgs.insert(zx.client_allocator, 0, .{
-        .username = "",
-        .text = "Connection error",
-        .is_system = true,
-    }) catch {};
-    messages.set(msgs);
-    zx.rerender();
+    if (messages) |msgs_state| {
+        var msgs = msgs_state.get();
+        msgs.insert(zx.client_allocator, 0, .{
+            .username = "",
+            .text = "Connection error",
+            .is_system = true,
+        }) catch {};
+        msgs_state.set(msgs);
+    }
 }
 
 const zx = @import("zx");

@@ -55,6 +55,7 @@ pub const Effect = reactivity.Effect;
 pub const CleanupFn = reactivity.CleanupFn;
 pub const EventHandler = reactivity.EventHandler;
 pub const signal = reactivity.signal;
+pub const State = reactivity.State;
 pub const effect = reactivity.effect;
 pub const effectDeferred = reactivity.effectDeferred;
 // TODO: this is currently VDom based re-render, remove this once signal system can trigger complex-re-render

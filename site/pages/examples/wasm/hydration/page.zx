@@ -22,7 +22,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-var sharedCount = zx.signal(i32, 0);
+var sharedCount: ?*zx.State(i32) = null;
+
+// var sharedCount = zx.signal(i32, 0);
 
 /// Inner nested struct for testing deep nesting
 pub const InnerProps = struct {
