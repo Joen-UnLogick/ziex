@@ -6,6 +6,10 @@ const is_wasm = window.is_wasm;
 /// Global instance counter for assigning unique IDs to component instances
 var instance_counter: u16 = 0;
 
+/// The component ID that is currently being rendered.
+/// Set by Client.render() so that ComponentCtx and ifpl can register subscriptions.
+var current_render_id: []const u8 = "";
+
 pub const ComponentMeta = struct {
     type: zx.BuiltinAttribute.Rendering,
     id: []const u8,
@@ -79,9 +83,15 @@ pub const ComponentMeta = struct {
                     ctx.allocator = allocator;
                     ctx.children = null;
 
-                    // Inject unique instance ID for per-instance signal state
+                    // Inject unique instance ID for per-instance signal state (legacy)
                     ctx._id = instance_counter;
                     instance_counter +%= 1; // Wrap around on overflow
+
+                    // Inject the stable component_id so state()/signal() use stable (id, slot) keys.
+                    // Reset both slot counters so hooks run in stable order every render.
+                    ctx._component_id = current_render_id;
+                    ctx._signal_index = 0;
+                    ctx._state_index = 0;
 
                     // Parse props if the context has a props field
                     if (@hasField(CtxType, "props")) {
@@ -213,7 +223,7 @@ pub fn registerVElement(self: *Client, velement: *vtree_mod.VElement) void {
     }
 
     // Recursively register children
-    for (velement.children.items) |*child| {
+    for (velement.children.items) |child| {
         self.registerVElement(child);
     }
 }
@@ -235,7 +245,7 @@ pub fn unregisterVElement(self: *Client, velement: *vtree_mod.VElement) void {
     _ = self.id_to_velement.remove(velement.id);
 
     // Recursively unregister children
-    for (velement.children.items) |*child| {
+    for (velement.children.items) |child| {
         self.unregisterVElement(child);
     }
 }
@@ -300,19 +310,26 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     const marker = document.findCommentMarker(cmp.id) catch return error.ContainerNotFound;
 
     // Call import with allocator and props_zon from the comment marker
+    const reactivity = @import("reactivity.zig");
+    // Set the active component ID so that ifpl() and subscribeActiveComponent()
+    // can register re-render subscriptions against this component.
+    current_render_id = cmp.id;
+    reactivity.active_component_id = cmp.id;
     const Component = cmp.import(allocator, marker.props_zon);
+    reactivity.active_component_id = null;
     const existing_vtree = self.vtrees.getPtr(cmp.id);
 
     // First render (hydration) - replace SSR content with VDOM
     if (existing_vtree == null) {
         const new_vtree = VDOMTree.init(allocator, Component);
-        try marker.replaceContent(new_vtree.vtree.dom);
         try self.vtrees.put(cmp.id, new_vtree);
+        const vtree_ptr = self.vtrees.getPtr(cmp.id).?;
 
-        // Register VElements for event delegation
-        if (self.vtrees.getPtr(cmp.id)) |vtree_ptr| {
-            self.registerVElement(&vtree_ptr.vtree);
-        }
+        // Map the VDOM to platform-specific nodes (DOM)
+        const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self);
+        try marker.replaceContent(dom_node);
+
+        // registerVElement is already called recursively inside createPlatformNodes
         return;
     }
 
@@ -324,8 +341,11 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
             const new_vtree = VDOMTree.init(allocator, Component);
             defer old_vtree.deinit(allocator);
 
-            try marker.replaceContent(new_vtree.vtree.dom);
             try self.vtrees.put(cmp.id, new_vtree);
+            const vtree_ptr = self.vtrees.getPtr(cmp.id).?;
+
+            const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self);
+            try marker.replaceContent(dom_node);
             return;
         }
 
@@ -382,11 +402,11 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
             patches.deinit(allocator);
         }
 
-        try VDOMTree.applyPatches(allocator, patches);
+        try vtree_mod.applyPatches(allocator, self, patches);
 
         // Re-register VElements to pick up any new elements created by PLACEMENT patches
         // This ensures event handlers are registered for newly created elements
-        self.registerVElement(&old_vtree.vtree);
+        self.registerVElement(old_vtree.vtree);
 
         // Update the VElement tree's components to match the new component
         // This ensures that on the next render, the diff will compare against the updated state

@@ -97,12 +97,14 @@ pub const ActionContext = ctxs.ActionContext;
 
 pub const BuiltinAttribute = @import("attributes.zig").builtin;
 pub const Platform = plfm.Platform;
+pub const vdom = @import("runtime/core/vdom.zig");
 
 // --- Routing --- //
 pub const Router = @import("runtime/core/Router.zig");
 
 // --- Storage --- //
 pub const kv = @import("runtime/core/kv.zig");
+pub const db = @panic("TODO: Database not implemented yet");
 
 // --- Net --- //
 pub const Headers = @import("runtime/core/Headers.zig");

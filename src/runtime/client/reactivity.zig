@@ -17,10 +17,163 @@ var effect_callbacks = std.ArrayList(EffectList).empty;
 var next_signal_id: u64 = 0;
 
 const is_wasm = builtin.os.tag == .freestanding;
-const allocator = zx.client_allocator;
+fn getGlobalAllocator() std.mem.Allocator {
+    return zx.client_allocator;
+}
+
+const ComponentSubKey = struct {
+    signal_id: u64,
+    component_id: []const u8,
+
+    const Context = struct {
+        pub fn hash(_: Context, k: ComponentSubKey) u64 {
+            var h = std.hash.Wyhash.init(0);
+            h.update(std.mem.asBytes(&k.signal_id));
+            h.update(k.component_id);
+            return h.final();
+        }
+        pub fn eql(_: Context, a: ComponentSubKey, b: ComponentSubKey) bool {
+            return a.signal_id == b.signal_id and std.mem.eql(u8, a.component_id, b.component_id);
+        }
+    };
+};
+
+var component_subscriptions = std.HashMapUnmanaged(
+    ComponentSubKey,
+    void,
+    ComponentSubKey.Context,
+    std.hash_map.default_max_load_percentage,
+){};
+
+pub var active_component_id: ?[]const u8 = null;
+
+/// Register a component for re-render when a signal changes.
+pub fn subscribeComponent(signal_id: u64, component_id: []const u8) void {
+    if (!is_wasm) return;
+    const key = ComponentSubKey{ .signal_id = signal_id, .component_id = component_id };
+    const g_alloc = getGlobalAllocator();
+    const result = component_subscriptions.getOrPut(g_alloc, key) catch return;
+    if (result.found_existing) return;
+
+    const id_copy = g_alloc.dupe(u8, component_id) catch return;
+    const ctx_ptr = g_alloc.create([]const u8) catch return;
+    ctx_ptr.* = id_copy;
+    registerEffect(signal_id, @ptrCast(ctx_ptr), &struct {
+        fn run(ctx: *anyopaque) void {
+            const id_ptr: *[]const u8 = @ptrCast(@alignCast(ctx));
+            scheduleRender(id_ptr.*);
+        }
+    }.run);
+}
+
+/// Key for the per-component per-slot state store.
+const StateKey = struct {
+    component_id: []const u8,
+    slot: u32,
+
+    const Context = struct {
+        pub fn hash(_: Context, k: StateKey) u64 {
+            var h = std.hash.Wyhash.init(0);
+            h.update(k.component_id);
+            h.update(std.mem.asBytes(&k.slot));
+            return h.final();
+        }
+        pub fn eql(_: Context, a: StateKey, b: StateKey) bool {
+            return a.slot == b.slot and std.mem.eql(u8, a.component_id, b.component_id);
+        }
+    };
+};
+
+/// Opaque blob of state; we store the erased pointer and let Signal.getOrCreate manage the type.
+const StateEntry = struct {
+    ptr: *anyopaque,
+};
+
+var state_store = std.HashMapUnmanaged(
+    StateKey,
+    StateEntry,
+    StateKey.Context,
+    std.hash_map.default_max_load_percentage,
+){};
 
 pub fn signal(comptime T: type, initial: T) Signal(T) {
     return Signal(T).init(initial);
+}
+
+/// Pure component state — triggers a full component re-render on change.
+/// Unlike Signal, this has NO DOM binding and cannot be used with `{&myState}`.
+/// Use `ctx.state()` to create an instance inside a component.
+/// This will replace Signal in the future.
+pub fn State(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        value: T,
+        /// The owning component ID — used to call scheduleRender on mutation.
+        component_id: []const u8,
+
+        pub fn init(value: T, component_id: []const u8) Self {
+            return .{ .value = value, .component_id = component_id };
+        }
+
+        /// Get the current value.
+        pub inline fn get(self: *const Self) T {
+            return self.value;
+        }
+
+        /// Set a new value and trigger a component re-render.
+        pub fn set(self: *Self, new_value: T) void {
+            self.value = new_value;
+            scheduleRender(self.component_id);
+        }
+
+        /// Update the value using a transform function `fn(T) T` and trigger a re-render.
+        /// Example: `count.update(struct { fn f(x: i32) i32 { return x + 1; } }.f)`
+        pub fn update(self: *Self, transform: *const fn (T) T) void {
+            self.value = transform(self.value);
+            scheduleRender(self.component_id);
+        }
+
+        /// Create an event handler that updates the state using a transform function.
+        pub fn bind(self: *Self, comptime transform: *const fn (T) T) zx.EventHandler {
+            return .{
+                .callback = &struct {
+                    fn handler(ctx: *anyopaque, _: zx.EventContext) void {
+                        const s: *Self = @ptrCast(@alignCast(ctx));
+                        s.set(transform(s.get()));
+                    }
+                }.handler,
+                .context = self,
+            };
+        }
+
+        pub fn getOrCreate(alloc: std.mem.Allocator, component_id: []const u8, slot: u32, initial: T) !*Self {
+            if (is_wasm) {
+                const key = StateKey{ .component_id = component_id, .slot = slot };
+
+                if (state_store.get(key)) |entry| {
+                    return @ptrCast(@alignCast(entry.ptr));
+                }
+
+                const state_ptr = try getGlobalAllocator().create(Self);
+                state_ptr.* = Self.init(initial, component_id);
+                const id_copy = try getGlobalAllocator().dupe(u8, component_id);
+                const stored_key = StateKey{ .component_id = id_copy, .slot = slot };
+                try state_store.put(getGlobalAllocator(), stored_key, .{ .ptr = @ptrCast(state_ptr) });
+                return state_ptr;
+            } else {
+                // Server SSR: return default state
+                const state_ptr = try alloc.create(Self);
+                state_ptr.* = Self.init(initial, component_id);
+                return state_ptr;
+            }
+        }
+    };
+}
+
+/// Top-level alias for State(T) pointer to improve IDE/ZLS type resolution.
+pub fn StateInstance(comptime T: type) type {
+    return *State(T);
 }
 
 pub fn Signal(comptime T: type) type {
@@ -73,6 +226,13 @@ pub fn Signal(comptime T: type) type {
             runEffects(self.id);
         }
 
+        pub fn subscribeActiveComponent(self: *Self) void {
+            self.ensureId();
+            if (active_component_id) |cid| {
+                subscribeComponent(self.id, cid);
+            }
+        }
+
         pub inline fn eql(self: *const Self, other: T) bool {
             return std.meta.eql(self.value, other);
         }
@@ -81,11 +241,9 @@ pub fn Signal(comptime T: type) type {
             return formatValue(T, self.value, buf);
         }
 
-        // ============ Instance-based signal creation for ComponentCtx ============
         var instances = std.ArrayList(*Self).empty;
         var initial_values = std.ArrayList(T).empty;
 
-        /// Instance handle returned by create() - acts like Signal but with handler generation.
         pub const ComponentSignal = struct {
             signal: *Self,
 
@@ -130,20 +288,34 @@ pub fn Signal(comptime T: type) type {
                     .context = self.signal,
                 };
             }
+
+            /// Update the value using a transform function `fn(T) T`.
+            pub fn update(self: ComponentSignal, transform: *const fn (T) T) void {
+                self.signal.set(transform(self.signal.get()));
+            }
         };
 
         /// Create an instance-aware signal for use in ComponentCtx.
         /// Each instance ID gets its own independent storage.
-        pub fn create(instance_id: u16, initial: T) !ComponentSignal {
+        /// DEPRECATED: Use getOrCreate with a stable component_id instead.
+        pub fn create(alloc: std.mem.Allocator, instance_id: u16, initial: T) !ComponentSignal {
+            if (!is_wasm) {
+                // Server SSR just needs a transient object
+                const sig_ptr = try alloc.create(Self);
+                sig_ptr.* = Self.init(initial);
+                return .{ .signal = sig_ptr };
+            }
+
             const idx = @as(usize, instance_id);
+            const g_alloc = getGlobalAllocator();
 
             if (idx >= instances.items.len) {
-                try instances.ensureTotalCapacity(allocator, idx + 1);
+                try instances.ensureTotalCapacity(g_alloc, idx + 1);
                 while (instances.items.len <= idx) {
-                    const new_instance_ptr = try allocator.create(Self);
+                    const new_instance_ptr = try g_alloc.create(Self);
                     new_instance_ptr.* = Self.init(undefined);
-                    try instances.append(allocator, new_instance_ptr);
-                    try initial_values.append(allocator, undefined);
+                    try instances.append(g_alloc, new_instance_ptr);
+                    try initial_values.append(g_alloc, undefined);
                 }
             }
 
@@ -154,6 +326,34 @@ pub fn Signal(comptime T: type) type {
             return .{
                 .signal = instances.items[idx],
             };
+        }
+
+        /// Stable state creation keyed by (component_id, slot).
+        /// On the first call for a given (component_id, slot), allocates and initialises with `initial`.
+        /// On subsequent calls (re-renders), returns the existing signal pointer unchanged.
+        pub fn getOrCreate(alloc: std.mem.Allocator, component_id: []const u8, slot: u32, initial: T) !ComponentSignal {
+            if (is_wasm) {
+                const key = StateKey{ .component_id = component_id, .slot = slot };
+
+                if (state_store.get(key)) |entry| {
+                    // Already exists: return existing signal without touching its value.
+                    const existing: *Self = @ptrCast(@alignCast(entry.ptr));
+                    return .{ .signal = existing };
+                }
+
+                // First render: allocate and initialise.
+                const sig_ptr = try getGlobalAllocator().create(Self);
+                sig_ptr.* = Self.init(initial);
+                const id_copy = try getGlobalAllocator().dupe(u8, component_id);
+                const stored_key = StateKey{ .component_id = id_copy, .slot = slot };
+                try state_store.put(getGlobalAllocator(), stored_key, .{ .ptr = @ptrCast(sig_ptr) });
+                return .{ .signal = sig_ptr };
+            } else {
+                // Server SSR just needs a transient object
+                const sig_ptr = try alloc.create(Self);
+                sig_ptr.* = Self.init(initial);
+                return .{ .signal = sig_ptr };
+            }
         }
     };
 }
@@ -311,7 +511,7 @@ pub fn registerBinding(signal_id: u64, text_node: js.Object) void {
     if (!is_wasm) return;
     ensureSignalSlot(signal_id) catch return;
     const idx = @as(usize, @intCast(signal_id));
-    signal_bindings.items[idx].append(allocator, text_node) catch {};
+    signal_bindings.items[idx].append(getGlobalAllocator(), text_node) catch {};
 }
 
 /// Clear all bindings for a signal (no-op on server).
@@ -328,9 +528,10 @@ pub fn clearBindings(signal_id: u64) void {
 
 /// Register an effect callback for a signal.
 pub fn registerEffect(signal_id: u64, context: *anyopaque, run_fn: *const fn (*anyopaque) void) void {
+    if (!is_wasm) return;
     ensureSignalSlot(signal_id) catch return;
     const idx = @as(usize, @intCast(signal_id));
-    effect_callbacks.items[idx].append(allocator, .{ .context = context, .run_fn = run_fn }) catch {};
+    effect_callbacks.items[idx].append(getGlobalAllocator(), .{ .context = context, .run_fn = run_fn }) catch {};
 }
 
 fn runEffects(signal_id: u64) void {
@@ -344,16 +545,17 @@ fn runEffects(signal_id: u64) void {
 
 /// Reset global reactivity state (useful for testing).
 pub fn reset() void {
+    const g_alloc = getGlobalAllocator();
     if (is_wasm) {
         for (signal_bindings.items) |*list| {
-            list.deinit(allocator);
+            list.deinit(g_alloc);
         }
-        signal_bindings.clearAndFree(allocator);
+        signal_bindings.clearAndFree(g_alloc);
     }
     for (effect_callbacks.items) |*list| {
-        list.deinit(allocator);
+        list.deinit(g_alloc);
     }
-    effect_callbacks.clearAndFree(allocator);
+    effect_callbacks.clearAndFree(g_alloc);
     next_signal_id = 0;
 }
 
@@ -366,6 +568,8 @@ pub fn rerender() void {
 }
 
 /// Request a re-render of a specific component by ID.
+/// If the component_id is not found in the registry (e.g. a nested ComponentCtx
+/// component without @rendering={.client}), falls back to re-rendering all components.
 pub fn scheduleRender(component_id: []const u8) void {
     if (!is_wasm) return;
     if (Client.global_client) |client| {
@@ -375,6 +579,9 @@ pub fn scheduleRender(component_id: []const u8) void {
                 return;
             }
         }
+        // component_id not registered — nested component inside a CSR parent.
+        // Re-render all so the parent picks up the state change.
+        client.renderAll();
     }
 }
 
@@ -385,15 +592,17 @@ pub const EventHandler = struct {
     callback: *const fn (ctx: *anyopaque, event: zx.EventContext) void,
     context: *anyopaque,
 
-    /// Helper to create an EventHandler from a plain function pointer (no context) - comptime version
-    pub fn fromFn(comptime func: *const fn (zx.EventContext) void) EventHandler {
+    /// Helper to create an EventHandler from a plain function pointer (no context)
+    pub fn fromFn(func: *const fn (zx.EventContext) void) EventHandler {
+        const Wrapper = struct {
+            fn wrapper(ctx: *anyopaque, event: zx.EventContext) void {
+                const f: *const fn (zx.EventContext) void = @ptrCast(@alignCast(ctx));
+                f(event);
+            }
+        };
         return .{
-            .callback = &struct {
-                fn wrapper(_: *anyopaque, event: zx.EventContext) void {
-                    func(event);
-                }
-            }.wrapper,
-            .context = undefined,
+            .callback = &Wrapper.wrapper,
+            .context = @as(*anyopaque, @ptrCast(@constCast(func))),
         };
     }
 
@@ -458,6 +667,8 @@ pub fn Effect(comptime T: type) type {
         /// Callback can return `void` or `?CleanupFn`.
         /// If `skip_initial` is true, skips the initial run (only fires on changes).
         pub fn init(source: anytype, comptime callback: anytype, skip_initial: bool) void {
+            if (!is_wasm) return;
+
             const SourcePtrType = @TypeOf(source);
             const source_info = @typeInfo(SourcePtrType);
 
@@ -505,7 +716,8 @@ pub fn Effect(comptime T: type) type {
 
             source.ensureId();
 
-            const effect_ptr = allocator.create(Self) catch @panic("OOM");
+            const g_alloc = getGlobalAllocator();
+            const effect_ptr = g_alloc.create(Self) catch @panic("OOM");
 
             effect_ptr.* = .{
                 .source_ptr = @ptrCast(source),
@@ -519,7 +731,7 @@ pub fn Effect(comptime T: type) type {
                 .cleanup = null,
             };
 
-            auto_effects.append(allocator, effect_ptr) catch @panic("OOM");
+            auto_effects.append(g_alloc, effect_ptr) catch @panic("OOM");
 
             effect_ptr.run();
         }
@@ -587,20 +799,21 @@ fn effectWithOptions(source: anytype, comptime callback: anytype, options: Effec
 
 fn ensureSignalSlot(signal_id: u64) !void {
     const idx = @as(usize, @intCast(signal_id));
+    const g_alloc = getGlobalAllocator();
 
     if (is_wasm) {
         if (idx >= signal_bindings.items.len) {
-            try signal_bindings.ensureTotalCapacity(allocator, idx + 1);
+            try signal_bindings.ensureTotalCapacity(g_alloc, idx + 1);
             while (signal_bindings.items.len <= idx) {
-                try signal_bindings.append(allocator, BindingList.empty);
+                try signal_bindings.append(g_alloc, BindingList.empty);
             }
         }
     }
 
     if (idx >= effect_callbacks.items.len) {
-        try effect_callbacks.ensureTotalCapacity(allocator, idx + 1);
+        try effect_callbacks.ensureTotalCapacity(g_alloc, idx + 1);
         while (effect_callbacks.items.len <= idx) {
-            try effect_callbacks.append(allocator, EffectList.empty);
+            try effect_callbacks.append(g_alloc, EffectList.empty);
         }
     }
 }

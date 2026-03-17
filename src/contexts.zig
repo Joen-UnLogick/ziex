@@ -120,10 +120,31 @@ pub fn ComponentCtx(comptime PropsType: type) type {
         props: PropsType,
         allocator: Allocator,
         children: ?Component = null,
+        /// Legacy field – kept for backward-compat with Client.zig which still sets it.
         _id: u16 = 0,
+        /// Stable string identifier for this component instance (e.g., the DOM marker ID).
+        _component_id: []const u8 = "",
+        /// Slot counter for signal() – separate from _state_index to avoid store collisions.
+        _signal_index: u32 = 0,
+        /// Slot counter for state().
+        _state_index: u32 = 0,
 
-        pub fn signal(self: Self, comptime T: type, initial: T) reactivity.SignalInstance(T) {
-            return reactivity.Signal(T).create(self._id, initial) catch @panic("Signal(T).create");
+        /// Fine-grained reactive signal – persisted across re-renders.
+        /// Use `{&mySignal}` in templates for text-node binding.
+        pub fn signal(self: *Self, comptime T: type, initial: T) reactivity.SignalInstance(T) {
+            const slot = self._signal_index;
+            self._signal_index += 1;
+            return reactivity.Signal(T).getOrCreate(self.allocator, self._component_id, slot, initial) catch @panic("Signal(T).getOrCreate");
+        }
+
+        /// Pure component state – persisted across re-renders.
+        /// `.set(v)` and `.update(fn)` trigger a full component re-render.
+        /// NOT for text binding; use `signal()` for that.
+        pub fn state(self: *Self, comptime T: type, initial: T) reactivity.StateInstance(T) {
+            // Offset by 1<<20 so state slots never collide with signal slots in the store.
+            const slot = (1 << 20) + self._state_index;
+            self._state_index += 1;
+            return reactivity.State(T).getOrCreate(self.allocator, self._component_id, slot, initial) catch @panic("State(T).getOrCreate");
         }
     };
 }

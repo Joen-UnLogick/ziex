@@ -1985,7 +1985,7 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
 
 /* Preview Content */
 .sandbox-preview-content {
-    background-color: #16181d !important;
+    background-color: var(--sandbox-bg) !important;
     flex: 1;
     display: flex;
     flex-direction: column;

@@ -134,6 +134,11 @@ pub const ZxContext = struct {
 
         if (T == Component) return val;
 
+        // Check if it's a Signal handle (ComponentSignal struct)
+        if (comptime isSignalHandle(T)) {
+            return self.expr(val.signal);
+        }
+
         // Check if it's a Signal pointer - enable fine-grained reactivity
         if (comptime isSignalPointer(T)) {
             const allocator = self.getAlloc();
@@ -147,6 +152,12 @@ pub const ZxContext = struct {
                 .signal_id = val.id,
                 .current_text = text,
             } };
+        }
+
+        // Check if it's a State pointer - automatically get the value for rendering.
+        // This allows using {state_count} in templates instead of {state_count.get()}.
+        if (comptime isStatePointer(T)) {
+            return self.expr(val.get());
         }
 
         // Check if it's a Computed pointer - enable fine-grained reactivity like Signal
@@ -271,10 +282,31 @@ pub const ZxContext = struct {
         return text;
     }
 
+    /// Helper to get the raw value of an expression (handles State/Signal automatically).
+    pub fn unwrap(self: anytype) @TypeOf(self) {
+        const T = @TypeOf(self);
+        if (comptime isSignalHandle(T)) return self.signal.get();
+        if (comptime isSignalPointer(T)) return self.get();
+        if (comptime isStatePointer(T)) return self.get();
+        return self;
+    }
+
     /// Create an attribute with type-aware value handling
     /// Returns null for values that should omit the attribute (false booleans, null optionals)
     pub fn attr(self: *ZxContext, comptime name: []const u8, val: anytype) ?Element.Attribute {
         const T = @TypeOf(val);
+
+        if (comptime isSignalHandle(T)) {
+            return self.attr(name, val.signal);
+        }
+
+        if (comptime isSignalPointer(T)) {
+            return self.attr(name, val.get());
+        }
+
+        if (comptime isStatePointer(T)) {
+            return self.attr(name, val.get());
+        }
 
         return switch (@typeInfo(T)) {
             // Strings and function pointers
@@ -565,7 +597,12 @@ pub const ZxContext = struct {
         comp_fn.caching = options.caching;
 
         // If client option is set, return a client component (for @rendering={.client})
-        // Render the component on the server for SSR, then hydrate on client
+        // Render the component on the server for SSR, then hydrate on client.
+        // On WASM (already on the client), skip the CSR wrapper — just render
+        // the component directly as a component_fn.
+        if (options.client != null and comptime @import("builtin").cpu.arch == .wasm32) {
+            return .{ .component_fn = comp_fn };
+        }
         if (options.client) |client_opts| {
             const name_copy = allocator.alloc(u8, client_opts.name.len) catch @panic("OOM");
             @memcpy(name_copy, client_opts.name);
@@ -667,6 +704,34 @@ fn isSignalPointer(comptime T: type) bool {
     if (type_info.pointer.size != .one) return false;
 
     return isSignalValue(type_info.pointer.child);
+}
+
+/// Check at comptime if a type is a ComponentSignal handle
+fn isSignalHandle(comptime T: type) bool {
+    if (@typeInfo(T) != .@"struct") return false;
+    if (!@hasField(T, "signal")) return false;
+    return isSignalPointer(@FieldType(T, "signal"));
+}
+
+/// Check at comptime if a type is a State struct (value, not pointer)
+fn isStateValue(comptime T: type) bool {
+    if (@typeInfo(T) != .@"struct") return false;
+
+    // Check for State's characteristic fields and declarations
+    return @hasField(T, "value") and
+        @hasField(T, "component_id") and
+        @hasDecl(T, "get") and
+        @hasDecl(T, "set") and
+        @hasDecl(T, "update");
+}
+
+/// Check at comptime if a type is a pointer to a State struct
+fn isStatePointer(comptime T: type) bool {
+    const type_info = @typeInfo(T);
+    if (type_info != .pointer) return false;
+    if (type_info.pointer.size != .one) return false;
+
+    return isStateValue(type_info.pointer.child);
 }
 
 /// Check at comptime if a type is a Computed struct (value, not pointer)

@@ -90,7 +90,13 @@ pub const Component = union(enum) {
                 // Contexted components
                 const CtxType = @typeInfo(FirstPropType).pointer.child;
                 const ctx = allocator.create(CtxType) catch @panic("OOM");
+                // allocator.create() does NOT run field default initializers, so explicitly
+                // set all fields that ComponentCtx defines with defaults.
                 ctx.allocator = allocator;
+                if (@hasField(CtxType, "_component_id")) ctx._component_id = "";
+                if (@hasField(CtxType, "_id")) ctx._id = 0;
+                if (@hasField(CtxType, "_state_index")) ctx._state_index = 0;
+                if (@hasField(CtxType, "_signal_index")) ctx._signal_index = 0;
                 // Children from props if present
                 ctx.children = if (@hasField(@TypeOf(props), "children")) props.children else null;
                 // fn Component(ctx: *ComponentCtx(Props)) zx.Component
@@ -136,6 +142,9 @@ pub const Component = union(enum) {
                     if (first_is_ctx_ptr) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
                         const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse @panic("ctx is null"))));
+                        // Reset slot counters on every call so hooks run in stable order.
+                        if (@hasField(CtxType, "_state_index")) ctx_ptr._state_index = 0;
+                        if (@hasField(CtxType, "_signal_index")) ctx_ptr._signal_index = 0;
                         return normalize(func(ctx_ptr));
                     }
                     if (first_is_allocator and param_count == 1) {

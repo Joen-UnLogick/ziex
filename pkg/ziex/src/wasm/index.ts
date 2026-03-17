@@ -41,55 +41,70 @@ export function storeValueGetRef(val: any): bigint {
     return tempRefView.getBigUint64(0, true);
 }
 
+/** Shared encoder/decoder — avoids allocating new instances on every call. */
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
+
+/** Cached Uint8Array view of WASM memory. Invalidated when the buffer grows. */
+let memoryView: Uint8Array | null = null;
+let memoryBuffer: ArrayBufferLike | null = null;
+
+function getMemoryView(): Uint8Array {
+    const buf = jsz.memory!.buffer;
+    if (buf !== memoryBuffer) {
+        memoryBuffer = buf;
+        memoryView = new Uint8Array(buf);
+    }
+    return memoryView!;
+}
+
+/**
+ * Cache for WASM string reads keyed by (ptr, len).
+ * Attribute names / tag names are Zig string literals whose pointers are
+ * stable for the lifetime of the module, so caching avoids repeated
+ * TextDecoder.decode calls for the same pointer+length pair.
+ */
+const stringCache = new Map<number, string>();
+function stringCacheKey(ptr: number, len: number): number { return ptr * 0x10000 + len; }
+
 /** Read a string from WASM memory */
 function readString(ptr: number, len: number): string {
-    const memory = new Uint8Array(jsz.memory!.buffer);
-    return new TextDecoder().decode(memory.slice(ptr, ptr + len));
+    const key = stringCacheKey(ptr, len);
+    const cached = stringCache.get(key);
+    if (cached !== undefined) return cached;
+    const str = textDecoder.decode(getMemoryView().subarray(ptr, ptr + len));
+    stringCache.set(key, str);
+    return str;
 }
 
 /** Write bytes to WASM memory at a specific location */
 function writeBytes(ptr: number, data: Uint8Array): void {
-    const memory = new Uint8Array(jsz.memory!.buffer);
-    memory.set(data, ptr);
+    getMemoryView().set(data, ptr);
 }
 
 /** ZX Bridge - provides JS APIs that callback into WASM */
 export class ZxBridge {
-    #exports: WebAssembly.Exports;
     #intervals: Map<bigint, number> = new Map();
     #websockets: Map<bigint, WebSocket> = new Map();
 
+    // Cached export lookups — resolved once in the constructor.
+    readonly #alloc: (size: number) => number;
+    readonly #handler: CallbackHandler | undefined;
+    readonly #fetchCompleteHandler: FetchCompleteHandler;
+    readonly #wsOnOpenHandler: WsOnOpenHandler | undefined;
+    readonly #wsOnMessageHandler: WsOnMessageHandler | undefined;
+    readonly #wsOnErrorHandler: WsOnErrorHandler | undefined;
+    readonly #wsOnCloseHandler: WsOnCloseHandler | undefined;
+
     constructor(exports: WebAssembly.Exports) {
-        this.#exports = exports;
-    }
-
-    get #alloc(): ((size: number) => number) {
-        return this.#exports.__zx_alloc as ((size: number) => number);
-    }
-
-    get #handler(): CallbackHandler | undefined {
-        return this.#exports.__zx_cb as CallbackHandler | undefined;
-    }
-
-    get #fetchCompleteHandler(): FetchCompleteHandler {
-        return this.#exports.__zx_fetch_complete as FetchCompleteHandler;
-    }
-
-    // WebSocket callback handlers
-    get #wsOnOpenHandler(): WsOnOpenHandler | undefined {
-        return this.#exports.__zx_ws_onopen as WsOnOpenHandler | undefined;
-    }
-
-    get #wsOnMessageHandler(): WsOnMessageHandler | undefined {
-        return this.#exports.__zx_ws_onmessage as WsOnMessageHandler | undefined;
-    }
-
-    get #wsOnErrorHandler(): WsOnErrorHandler | undefined {
-        return this.#exports.__zx_ws_onerror as WsOnErrorHandler | undefined;
-    }
-
-    get #wsOnCloseHandler(): WsOnCloseHandler | undefined {
-        return this.#exports.__zx_ws_onclose as WsOnCloseHandler | undefined;
+        this.#alloc = exports.__zx_alloc as (size: number) => number;
+        this.#handler = exports.__zx_cb as CallbackHandler | undefined;
+        this.#fetchCompleteHandler = exports.__zx_fetch_complete as FetchCompleteHandler;
+        this.#wsOnOpenHandler = exports.__zx_ws_onopen as WsOnOpenHandler | undefined;
+        this.#wsOnMessageHandler = exports.__zx_ws_onmessage as WsOnMessageHandler | undefined;
+        this.#wsOnErrorHandler = exports.__zx_ws_onerror as WsOnErrorHandler | undefined;
+        this.#wsOnCloseHandler = exports.__zx_ws_onclose as WsOnCloseHandler | undefined;
+        this.#eventbridge = exports.__zx_eventbridge as ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
     }
 
     /** Invoke the unified callback handler */
@@ -167,7 +182,7 @@ export class ZxBridge {
         const handler = this.#fetchCompleteHandler;
 
         // Write the body to WASM memory
-        const encoded = new TextEncoder().encode(body);
+        const encoded = textEncoder.encode(body);
         
         // Allocate memory for body
         const ptr = this.#alloc(encoded.length);
@@ -248,7 +263,7 @@ export class ZxBridge {
                 if (isBinary) {
                     data = new Uint8Array(event.data as ArrayBuffer);
                 } else {
-                    data = new TextEncoder().encode(event.data as string);
+                    data = textEncoder.encode(event.data as string);
                 }
 
                 const { ptr, len } = this.#writeBytesToWasm(data);
@@ -293,13 +308,13 @@ export class ZxBridge {
         const ws = this.#websockets.get(wsId);
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-        const memory = new Uint8Array(jsz.memory!.buffer);
-        const data = memory.slice(dataPtr, dataPtr + dataLen);
+        const memory = getMemoryView();
 
         if (isBinary) {
-            ws.send(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+            // WebSocket.send needs an owned copy — WASM memory may be reused.
+            ws.send(memory.slice(dataPtr, dataPtr + dataLen));
         } else {
-            ws.send(new TextDecoder().decode(data));
+            ws.send(textDecoder.decode(memory.subarray(dataPtr, dataPtr + dataLen)));
         }
     }
 
@@ -324,7 +339,7 @@ export class ZxBridge {
 
     /** Write a string to WASM memory, returning pointer and length */
     #writeStringToWasm(str: string): { ptr: number; len: number } {
-        const encoded = new TextEncoder().encode(str);
+        const encoded = textEncoder.encode(str);
         return this.#writeBytesToWasm(encoded);
     }
 
@@ -334,11 +349,13 @@ export class ZxBridge {
         return { ptr, len: data.length };
     }
 
+    readonly #eventbridge: ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
+
     /** Handle a DOM event (called by event delegation) */
     eventbridge(velementId: bigint, eventTypeId: number, event: Event): void {
+        if (!this.#eventbridge) return;
         const eventRef = storeValueGetRef(event);
-        const eventbridge = this.#exports.__zx_eventbridge as ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
-        if (eventbridge) eventbridge(velementId, eventTypeId, eventRef);
+        this.#eventbridge(velementId, eventTypeId, eventRef);
     }
 
     /** Create the import object for WASM instantiation */
@@ -393,17 +410,91 @@ export class ZxBridge {
                 _wsClose: (wsId: bigint, code: number, reasonPtr: number, reasonLen: number) => {
                     bridgeRef.current?.wsClose(wsId, code, reasonPtr, reasonLen);
                 },
-                _ce: (id: number) => {
+                // ── Direct DOM externs (bypass jsz for all hot-path operations) ──────────
+                //
+                // domNodes is a Map<vnode_id, Node> that mirrors the live DOM tree.
+                // All mutations use vnode_ids directly so no jsz table lookups are
+                // needed on the hot rendering path.
+
+                _ce: (id: number, vnodeId: bigint): bigint => {
                     const tagName = TAG_NAMES[id] as string;
-                    // SVG elements start at index SVG_TAG_START_INDEX and need createElementNS
                     const el = id >= SVG_TAG_START_INDEX
                         ? document.createElementNS('http://www.w3.org/2000/svg', tagName)
                         : document.createElement(tagName);
+                    (el as any).__zx_ref = Number(vnodeId);
+                    domNodes.set(vnodeId, el);
+                    // Also store in jsz so the root HTMLElement can be passed to CommentMarker.
                     return storeValueGetRef(el);
+                },
+
+                _ct: (ptr: number, len: number, vnodeId: bigint): bigint => {
+                    const text = readString(ptr, len);
+                    const node = document.createTextNode(text);
+                    (node as any).__zx_ref = Number(vnodeId);
+                    domNodes.set(vnodeId, node);
+                    return storeValueGetRef(node);
+                },
+
+                _sa: (vnodeId: bigint, namePtr: number, nameLen: number, valPtr: number, valLen: number) => {
+                    (domNodes.get(vnodeId) as Element | undefined)
+                        ?.setAttribute(readString(namePtr, nameLen), readString(valPtr, valLen));
+                },
+
+                _ra: (vnodeId: bigint, namePtr: number, nameLen: number) => {
+                    (domNodes.get(vnodeId) as Element | undefined)
+                        ?.removeAttribute(readString(namePtr, nameLen));
+                },
+
+                _snv: (vnodeId: bigint, ptr: number, len: number) => {
+                    const node = domNodes.get(vnodeId);
+                    if (node) node.nodeValue = readString(ptr, len);
+                },
+
+                _ac: (parentId: bigint, childId: bigint) => {
+                    const parent = domNodes.get(parentId);
+                    const child = domNodes.get(childId);
+                    if (parent && child) parent.appendChild(child);
+                },
+
+                _ib: (parentId: bigint, childId: bigint, refId: bigint) => {
+                    const parent = domNodes.get(parentId);
+                    const child = domNodes.get(childId);
+                    const ref = domNodes.get(refId) ?? null;
+                    if (parent && child) parent.insertBefore(child, ref);
+                },
+
+                _rc: (parentId: bigint, childId: bigint) => {
+                    const parent = domNodes.get(parentId);
+                    const child = domNodes.get(childId);
+                    if (parent && child) {
+                        parent.removeChild(child);
+                        cleanupDomNodes(child);
+                    }
+                },
+
+                _rpc: (parentId: bigint, newId: bigint, oldId: bigint) => {
+                    const parent = domNodes.get(parentId);
+                    const newChild = domNodes.get(newId);
+                    const oldChild = domNodes.get(oldId);
+                    if (parent && newChild && oldChild) {
+                        parent.replaceChild(newChild, oldChild);
+                        cleanupDomNodes(oldChild);
+                    }
                 },
             },
         };
     }
+}
+
+/** JS-side DOM node registry: vnode_id → Node. Mirrors the live DOM tree. */
+const domNodes = new Map<bigint, Node>();
+
+/** Recursively remove a node subtree from domNodes. */
+function cleanupDomNodes(node: Node): void {
+    const ref = (node as any).__zx_ref;
+    if (ref !== undefined) domNodes.delete(BigInt(ref));
+    const children = node.childNodes;
+    for (let i = 0; i < children.length; i++) cleanupDomNodes(children[i]!);
 }
 
 // Index where SVG tags start in TAG_NAMES array

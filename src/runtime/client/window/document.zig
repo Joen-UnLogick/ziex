@@ -204,9 +204,11 @@ pub fn createElement(self: Document, tag: []const u8) HTMLElement {
     return HTMLElement.init(self.allocator, ref);
 }
 
-pub fn createElementId(self: Document, id: usize) HTMLElement {
+/// Create an element by tag enum id. vnode_id is registered in the JS domNodes
+/// registry and used as the __zx_ref property value on the element.
+pub fn createElementId(self: Document, id: usize, vnode_id: u64) HTMLElement {
     if (!is_wasm) return HTMLElement.init(self.allocator, {});
-    const ref_id = ext._ce(id);
+    const ref_id = ext._ce(id, vnode_id);
 
     const real_js = @import("js");
     const val: real_js.Value = @enumFromInt(ref_id);

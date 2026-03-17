@@ -7,6 +7,7 @@ test {
     _ = @import("core/net.zig");
     _ = @import("core/prop.zig");
     _ = @import("core/routing.zig");
+    _ = @import("core/vdom.zig");
 }
 
 pub const std_options = std.Options{

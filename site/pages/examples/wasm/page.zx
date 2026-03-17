@@ -16,6 +16,7 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
             <div class="todo-header">
                 <h1 class="todo-title">ZX + WASM</h1>
                 <Counter />
+                <CounterCmp initial={0} />
                 <p class="todo-subtitle">A demo todo app built with ZX Client Side Rendering</p>
             </div>
 
@@ -187,6 +188,7 @@ fn Counter(allocator: zx.Allocator) zx.Component {
 }
 
 pub const CounterPage = @import("./simple/page.zx").Page;
+pub const CounterCmp = @import("./simple/page.zx").Counter;
 
 const zx = @import("zx");
 const std = @import("std");

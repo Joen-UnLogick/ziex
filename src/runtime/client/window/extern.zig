@@ -1,10 +1,53 @@
-pub extern "__zx" fn _ce(id: usize) u64;
+// ── Element creation ─────────────────────────────────────────────────────────
+
+/// Create an HTML/SVG element by tag enum id, register it in the JS domNodes
+/// registry under vnode_id, and set __zx_ref = vnode_id on the element.
+/// Returns the jsz ref (needed to construct the root HTMLElement for CommentMarker).
+pub extern "__zx" fn _ce(id: usize, vnode_id: u64) u64;
+
+/// Create a text node with the given content, register it in the JS domNodes
+/// registry under vnode_id, and set __zx_ref = vnode_id on the node.
+/// Returns the jsz ref (needed for signal bindings via reactivity.registerBinding).
+pub extern "__zx" fn _ct(ptr: [*]const u8, len: usize, vnode_id: u64) u64;
+
+// ── Attribute / property mutation ────────────────────────────────────────────
+
+/// setAttribute on the element identified by vnode_id.
+pub extern "__zx" fn _sa(vnode_id: u64, name_ptr: [*]const u8, name_len: usize, val_ptr: [*]const u8, val_len: usize) void;
+
+/// removeAttribute on the element identified by vnode_id.
+pub extern "__zx" fn _ra(vnode_id: u64, name_ptr: [*]const u8, name_len: usize) void;
+
+/// Set nodeValue on the text node identified by vnode_id.
+pub extern "__zx" fn _snv(vnode_id: u64, ptr: [*]const u8, len: usize) void;
+
+// ── DOM tree mutation ─────────────────────────────────────────────────────────
+
+/// parent.appendChild(child) — both nodes looked up by vnode_id.
+pub extern "__zx" fn _ac(parent_id: u64, child_id: u64) void;
+
+/// parent.insertBefore(child, ref) — all nodes looked up by vnode_id.
+pub extern "__zx" fn _ib(parent_id: u64, child_id: u64, ref_id: u64) void;
+
+/// parent.removeChild(child) — looked up by vnode_id.
+/// Also recursively removes all descendants from the JS domNodes registry.
+pub extern "__zx" fn _rc(parent_id: u64, child_id: u64) void;
+
+/// parent.replaceChild(new_child, old_child) — looked up by vnode_id.
+/// Also removes old_child subtree from the JS domNodes registry.
+pub extern "__zx" fn _rpc(parent_id: u64, new_id: u64, old_id: u64) void;
+
+// ── Async / timer ─────────────────────────────────────────────────────────────
 pub extern "__zx" fn _setTimeout(callback_id: u64, delay_ms: u32) void;
 pub extern "__zx" fn _setInterval(callback_id: u64, interval_ms: u32) void;
 pub extern "__zx" fn _clearInterval(callback_id: u64) void;
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 pub extern "__zx" fn _wsConnect(ws_id: u64, url_ptr: [*]const u8, url_len: usize, protocols_ptr: [*]const u8, protocols_len: usize) void;
 pub extern "__zx" fn _wsSend(ws_id: u64, data_ptr: [*]const u8, data_len: usize, is_binary: u8) void;
 pub extern "__zx" fn _wsClose(ws_id: u64, code: u16, reason_ptr: [*]const u8, reason_len: usize) void;
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 pub extern "__zx" fn _fetchAsync(
     url_ptr: [*]const u8,
     url_len: usize,
