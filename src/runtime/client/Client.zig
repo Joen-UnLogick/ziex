@@ -16,9 +16,9 @@ pub const ComponentMeta = struct {
     name: []const u8,
     path: []const u8,
     route: ?[]const u8,
-    import: *const fn (allocator: std.mem.Allocator, data_zon: ?[]const u8) zx.Component,
+    import: *const fn (allocator: std.mem.Allocator, cmp_name: []const u8, data_zon: ?[]const u8) zx.Component,
 
-    pub fn init(comptime func: anytype) *const fn (std.mem.Allocator, ?[]const u8) zx.Component {
+    pub fn init(comptime func: anytype) *const fn (std.mem.Allocator, []const u8, ?[]const u8) zx.Component {
         // TODO: Reuse from root.zig
         const FuncInfo = @typeInfo(@TypeOf(func));
 
@@ -63,7 +63,7 @@ pub const ComponentMeta = struct {
                 return result;
             }
 
-            fn wrapper(allocator: std.mem.Allocator, props_json: ?[]const u8) zx.Component {
+            fn wrapper(allocator: std.mem.Allocator, cmp_name: []const u8, props_json: ?[]const u8) zx.Component {
                 // Case 1: Component takes only allocator - fn Component(allocator) Component
                 if (first_is_allocator and param_count == 1) {
                     return normalizeResult(func(allocator));
@@ -92,6 +92,8 @@ pub const ComponentMeta = struct {
                     ctx._component_id = current_render_id;
                     ctx._signal_index = 0;
                     ctx._state_index = 0;
+                    if (@hasField(CtxType, "_handler_index")) ctx._handler_index = 0;
+                    if (@hasField(CtxType, "_component_name")) ctx._component_name = cmp_name;
 
                     // Parse props if the context has a props field
                     if (@hasField(CtxType, "props")) {
@@ -315,7 +317,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     // can register re-render subscriptions against this component.
     current_render_id = cmp.id;
     reactivity.active_component_id = cmp.id;
-    const Component = cmp.import(allocator, marker.props_zon);
+    const Component = cmp.import(allocator, cmp.name, marker.props_zon);
     reactivity.active_component_id = null;
     const existing_vtree = self.vtrees.getPtr(cmp.id);
 

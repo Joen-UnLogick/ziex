@@ -50,14 +50,14 @@ pub const prop = prp.prop;
 pub const client = @import("runtime/client/window.zig");
 
 // --- Reactivity --- //
-pub const Computed = reactivity.Computed;
-pub const Effect = reactivity.Effect;
-pub const CleanupFn = reactivity.CleanupFn;
+// pub const Computed = reactivity.Computed;
+// pub const Effect = reactivity.Effect;
+// pub const CleanupFn = reactivity.CleanupFn;
 pub const EventHandler = reactivity.EventHandler;
-pub const signal = reactivity.signal;
+// pub const signal = reactivity.signal;
 pub const State = reactivity.State;
-pub const effect = reactivity.effect;
-pub const effectDeferred = reactivity.effectDeferred;
+// pub const effect = reactivity.effect;
+// pub const effectDeferred = reactivity.effectDeferred;
 // TODO: this is currently VDom based re-render, remove this once signal system can trigger complex-re-render
 pub const rerender = reactivity.rerender;
 
@@ -94,6 +94,9 @@ pub const SocketOptions = routing.SocketOptions;
 pub const ComponentCtx = ctxs.ComponentCtx;
 pub const ComponentContext = ComponentCtx(void);
 pub const EventContext = ctxs.EventContext;
+pub const ServerEventContext = ctxs.ServerEventContext;
+pub const StateContext = ctxs.StateContext;
+pub const StateHandle = ctxs.StateHandle;
 pub const ActionContext = ctxs.ActionContext;
 
 pub const BuiltinAttribute = @import("attributes.zig").builtin;

@@ -1121,7 +1121,6 @@ fn transpileFile(
     opts: TranspileOptions,
     source_path: []const u8,
     output_path: []const u8,
-    input_root: []const u8,
 ) !void {
     const source = try std.fs.cwd().readFileAlloc(
         allocator,
@@ -1133,11 +1132,25 @@ fn transpileFile(
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .path = source_path, .map = opts.map });
+    // Convert to relative path for deterministic component IDs and sourcemaps
+    var relative_source_path: []const u8 = source_path;
+    var rel_path_allocated = false;
+    if (std.fs.path.isAbsolute(source_path)) {
+        if (std.fs.cwd().realpathAlloc(allocator, ".")) |cwd| {
+            defer allocator.free(cwd);
+            if (relativePath(allocator, cwd, source_path)) |rel| {
+                relative_source_path = rel;
+                rel_path_allocated = true;
+            } else |_| {}
+        } else |_| {}
+    }
+    defer if (rel_path_allocated) allocator.free(relative_source_path);
+
+    var result = try zx.Ast.parse(allocator, source_z, .{ .path = relative_source_path, .map = opts.map });
     defer result.deinit(allocator);
 
     // Extract route from source path
-    const component_route = try extractRouteFromPath(allocator, source_path);
+    const component_route = try extractRouteFromPath(allocator, relative_source_path);
     defer allocator.free(component_route);
 
     // Append components from this file to the global list
@@ -1173,34 +1186,21 @@ fn transpileFile(
                 cloned_import = import_str;
             },
             .react => {
-                // For .react components, use the original component path logic
-                const source_dir = std.fs.path.dirname(source_path) orelse ".";
-                const resolved_component_path = try resolvePath(allocator, source_dir, component.path);
-                defer allocator.free(resolved_component_path);
+                // For .react components, the path is relative to project root (e.g., site/pages/...).
+                const abs_component_path = std.fs.cwd().realpathAlloc(allocator, component.path) catch |err| blk: {
+                    // Fallback to resolving relative to CWD if realpath fails
+                    std.log.warn("Warning: could not get realpath for {s}: {}\n", .{ component.path, err });
+                    const cwd = std.fs.cwd().realpathAlloc(allocator, ".") catch |err2| {
+                        std.log.err("Error: realpath(.) failed: {}\n", .{err2});
+                        break :blk try allocator.dupe(u8, component.path);
+                    };
+                    defer allocator.free(cwd);
+                    break :blk try std.fs.path.resolve(allocator, &.{ cwd, component.path });
+                };
+                defer allocator.free(abs_component_path);
 
-                // Calculate relative path from input root to component
-                // This path will be the same in the output directory structure
-                const component_rel_to_input = try relativePath(allocator, input_root, resolved_component_path);
-                defer allocator.free(component_rel_to_input);
-
-                // Get package root directory to determine node_modules location
-                const pkg_rootdir = try getPackageRootDir(allocator);
-                defer allocator.free(pkg_rootdir);
-
-                // component.ts is inside node_modules/@ziex/components/index.ts
-                // Calculate relative path from that directory to the component file
-                const ziex_components_dir_rel = if (pkg_rootdir.len == 0)
-                    try std.fs.path.join(allocator, &.{ "node_modules", "@ziex", "components" })
-                else
-                    try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex", "components" });
-                defer allocator.free(ziex_components_dir_rel);
-
-                // Resolve to absolute path for accurate relative path calculation
-                const ziex_components_dir = try std.fs.path.resolve(allocator, &.{ziex_components_dir_rel});
-                defer allocator.free(ziex_components_dir);
-
-                const import_str = try std.fmt.allocPrint(allocator, "@async () => (await import('{s}')).default@", .{resolved_component_path});
-                cloned_path = try allocator.dupe(u8, component_rel_to_input);
+                const import_str = try std.fmt.allocPrint(allocator, "@async () => (await import('{s}')).default@", .{abs_component_path});
+                cloned_path = try allocator.dupe(u8, component.path);
                 cloned_import = import_str;
             },
             else => return error.InvalidComponentType,
@@ -1240,7 +1240,7 @@ fn transpileFile(
                 const sourcemap_json = try sm.toJSON(
                     allocator,
                     output_path,
-                    source_path,
+                    relative_source_path,
                     source,
                     result.zig_source,
                 );
@@ -1258,7 +1258,7 @@ fn transpileFile(
                 const sourcemap_json = try sm.toJSON(
                     allocator,
                     output_path,
-                    source_path,
+                    relative_source_path,
                     source,
                     null,
                 );
@@ -1344,7 +1344,7 @@ fn transpileDirectory(
             const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
             defer allocator.free(output_path);
 
-            transpileFile(allocator, global_components, opts, input_path, output_path, opts.path) catch |err| {
+            transpileFile(allocator, global_components, opts, input_path, output_path) catch |err| {
                 std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
                 continue;
             };
@@ -1472,8 +1472,7 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
             const outpath = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
             defer allocator.free(outpath);
 
-            const input_root = if (std.fs.path.dirname(opts.path)) |dir| dir else ".";
-            try transpileFile(allocator, &all_client_cmps, opts, opts.path, outpath, input_root);
+            try transpileFile(allocator, &all_client_cmps, opts, opts.path, outpath);
             task.completeOne();
         },
         else => {

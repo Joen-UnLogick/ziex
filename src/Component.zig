@@ -145,6 +145,7 @@ pub const Component = union(enum) {
                         // Reset slot counters on every call so hooks run in stable order.
                         if (@hasField(CtxType, "_state_index")) ctx_ptr._state_index = 0;
                         if (@hasField(CtxType, "_signal_index")) ctx_ptr._signal_index = 0;
+                        if (@hasField(CtxType, "_handler_index")) ctx_ptr._handler_index = 0;
                         return normalize(func(ctx_ptr));
                     }
                     if (first_is_allocator and param_count == 1) {

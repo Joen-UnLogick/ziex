@@ -213,6 +213,9 @@ pub const FetchError = error{
 /// - err: The error if failed, null on success
 pub const ResponseCallback = *const fn (response: ?*Response, err: ?FetchError) void;
 
+/// Like ResponseCallback but carries an opaque context pointer for stateful callbacks.
+pub const ResponseCallbackCtx = *const fn (ctx: *anyopaque, response: ?*Response, err: ?FetchError) void;
+
 // ============================================================================
 // Platform Implementations
 // ============================================================================

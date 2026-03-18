@@ -117,13 +117,80 @@ pub const EventContext = struct {
 };
 
 pub const ActionContext = struct {
-    request: Request,
-    response: Response,
-    allocator: std.mem.Allocator,
-    arena: std.mem.Allocator,
-    action_ref: u64,
+    request: Request = undefined,
+    response: Response = undefined,
+    allocator: std.mem.Allocator = undefined,
+    arena: std.mem.Allocator = undefined,
+    action_ref: u64 = 0,
+
     pub fn init(action_ref: u64) ActionContext {
         return .{ .action_ref = action_ref };
+    }
+};
+
+/// A handle to a single state value inside a ServerEventContext handler.
+/// Returned by `sc.state(T)` — call `.get()` to read, `.set(val)` to write back.
+pub fn StateHandle(comptime T: type) type {
+    return struct {
+        _ctx: *StateContext,
+        _index: usize,
+        _value: T,
+
+        pub fn get(self: @This()) T {
+            return self._value;
+        }
+
+        pub fn set(self: @This(), val: T) void {
+            if (self._index >= self._ctx._outputs.len) return;
+            var aw = std.Io.Writer.Allocating.init(self._ctx._allocator);
+            zx.prop.serialize(T, val, &aw.writer) catch return;
+            self._ctx._outputs[self._index] = aw.written();
+        }
+    };
+}
+
+/// Server-side accessor for component states round-tripped through a server event.
+/// Passed as the second argument to handlers with signature:
+///   fn(ctx: zx.ServerEventContext, sc: *zx.StateContext) void
+///
+/// Call `sc.state(T)` in the same order as `ctx.state(T)` in the render function
+/// to access each bound state — no index needed.
+pub const StateContext = struct {
+    _allocator: std.mem.Allocator,
+    /// Positional JSON values received from the client, one per bound state.
+    _inputs: []const []const u8,
+    /// Positional JSON values to return to the client (pre-seeded from _inputs).
+    _outputs: [][]u8,
+    /// Auto-incremented by each call to state().
+    _index: usize = 0,
+
+    /// Access the next bound state in call order, deserializing it to type `T`.
+    /// Returns a StateHandle with `.get()` / `.set()` — same ergonomics as EventContext.state().
+    pub fn state(self: *StateContext, comptime T: type) StateHandle(T) {
+        const i = self._index;
+        self._index += 1;
+        const val: T = if (i < self._inputs.len)
+            zx.prop.parse(T, self._allocator, self._inputs[i])
+        else
+            std.mem.zeroes(T);
+        return StateHandle(T){ ._ctx = self, ._index = i, ._value = val };
+    }
+};
+
+pub const ServerEventContext = struct {
+    allocator: std.mem.Allocator = undefined,
+    arena: std.mem.Allocator = undefined,
+    action_ref: u64 = 0,
+    payload: zx.EventHandler.ServerEventPayload = .{},
+    /// Set by the comptime-generated wrapper when the handler uses StateContext.
+    _state_ctx: ?*StateContext = null,
+
+    pub fn init(action_ref: u64) ServerEventContext {
+        return .{ .action_ref = action_ref };
+    }
+
+    pub fn value(self: ServerEventContext) ?[]const u8 {
+        return self.payload.value;
     }
 };
 
@@ -141,14 +208,16 @@ pub fn ComponentCtx(comptime PropsType: type) type {
         _signal_index: u32 = 0,
         /// Slot counter for state().
         _state_index: u32 = 0,
+        /// Slot counter for server event handlers to ensure stable IDs across re-renders.
+        _handler_index: u32 = 0,
 
-        /// Fine-grained reactive signal – persisted across re-renders.
-        /// Use `{&mySignal}` in templates for text-node binding.
-        pub fn signal(self: *Self, comptime T: type, initial: T) reactivity.SignalInstance(T) {
-            const slot = self._signal_index;
-            self._signal_index += 1;
-            return reactivity.Signal(T).getOrCreate(self.allocator, self._component_id, slot, initial) catch @panic("Signal(T).getOrCreate");
-        }
+        // /// Fine-grained reactive signal – persisted across re-renders.
+        // /// Use `{&mySignal}` in templates for text-node binding.
+        // pub fn signal(self: *Self, comptime T: type, initial: T) reactivity.SignalInstance(T) {
+        //     const slot = self._signal_index;
+        //     self._signal_index += 1;
+        //     return reactivity.Signal(T).getOrCreate(self.allocator, self._component_id, slot, initial) catch @panic("Signal(T).getOrCreate");
+        // }
 
         /// Pure component state – persisted across re-renders.
         /// `.set(v)` and `.update(fn)` trigger a full component re-render.
@@ -160,39 +229,198 @@ pub fn ComponentCtx(comptime PropsType: type) type {
             return reactivity.State(T).getOrCreate(self.allocator, self._component_id, slot, initial) catch @panic("State(T).getOrCreate");
         }
 
-        /// Bind an event handler with access to all of this component's state.
-        /// The handler receives a pointer to an `EventContext` which can access state via `e.state(T)`.
+        /// Bind a server event handler with only the explicitly listed states.
+        /// Prefer `ctx.bind(handler)` which auto-binds all component states.
+        /// Use this only when you want a smaller payload by sending a subset.
         ///
-        /// Re-derive states in the handler using the same order as in the render function:
-        /// ```zig
-        /// pub fn MyComponent(ctx: *zx.ComponentCtx(void)) zx.Component {
-        ///     const count = ctx.state(i32, 0);
-        ///     return (<button onclick={ctx.bind(&onClick)}>Click</button>);
-        /// }
+        /// `handler` must have the signature:
+        ///   fn(ctx: zx.ServerEventContext, sc: *zx.StateContext) void
         ///
-        /// fn onClick(e: *zx.EventContext) void {
-        ///     const count = e.state(i32);   // same order as render
-        ///     e.preventDefault();
-        ///     count.set(count.get() + 1);
-        /// }
-        /// ```
-        pub fn bind(self: *Self, comptime handler: *const fn (*EventContext) void) zx.EventHandler {
-            const alloc = if (platform == .browser) client_allocator else self.allocator;
-            const cid_ptr = alloc.create([]const u8) catch @panic("OOM");
-            cid_ptr.* = alloc.dupe(u8, self._component_id) catch @panic("OOM");
+        /// `states` is a tuple of `*State(T)` values (from `ctx.state()`).
+        /// Access them via `sc.state(T)` in the same order as listed in the tuple.
+        pub fn sbind(
+            self: *Self,
+            comptime handler: anytype,
+            states: anytype,
+        ) zx.EventHandler {
+            const HandlerInfo = @typeInfo(@TypeOf(handler));
+            const params = HandlerInfo.@"fn".params;
 
-            return .{
-                .callback = &struct {
-                    fn wrapper(ctx: *anyopaque, event: EventContext) void {
-                        const cid_p: *[]const u8 = @ptrCast(@alignCast(ctx));
-                        var e = event;
-                        e._component_id = cid_p.*;
-                        e._state_index = 0;
-                        handler(&e);
+            comptime {
+                if (params.len != 2 or
+                    params[0].type.? != zx.ServerEventContext or
+                    params[1].type.? != *zx.StateContext)
+                {
+                    @compileError("sbind: handler must be fn(zx.ServerEventContext, *zx.StateContext) void");
+                }
+            }
+
+            const StatesType = @TypeOf(states);
+            const state_fields = @typeInfo(StatesType).@"struct".fields;
+
+            // Server-side wrapper: builds a StateContext from the parsed payload states,
+            const ServerWrapper = struct {
+                fn wrap(ctx: *zx.ServerEventContext) void {
+                    const n = ctx.payload.states.len;
+                    const outputs = ctx.allocator.alloc([]u8, n) catch return;
+                    for (ctx.payload.states, 0..) |s, i| {
+                        outputs[i] = ctx.allocator.dupe(u8, s) catch "";
                     }
-                }.wrapper,
-                .context = @ptrCast(cid_ptr),
+                    const sc = ctx.allocator.create(zx.StateContext) catch return;
+                    sc.* = zx.StateContext{
+                        ._allocator = ctx.allocator,
+                        ._inputs = ctx.payload.states,
+                        ._outputs = outputs,
+                    };
+                    handler(ctx.*, sc);
+                    ctx._state_ctx = sc;
+                }
             };
+
+            // Client-side: build BoundStateEntry vtable for each bound state.
+            const alloc = if (platform == .browser) client_allocator else self.allocator;
+            const bound_states_arr = alloc.alloc(zx.EventHandler.BoundStateEntry, state_fields.len) catch @panic("OOM");
+
+            inline for (state_fields, 0..) |field, i| {
+                const s = @field(states, field.name); // *State(T)
+                const T = @typeInfo(@TypeOf(s)).pointer.child.ValueType;
+
+                bound_states_arr[i] = zx.EventHandler.BoundStateEntry{
+                    .state_ptr = @ptrCast(s),
+                    .getJson = &struct {
+                        fn get(get_alloc: std.mem.Allocator, ptr: *anyopaque) []const u8 {
+                            const st: *reactivity.State(T) = @ptrCast(@alignCast(ptr));
+                            var aw = std.Io.Writer.Allocating.init(get_alloc);
+                            zx.prop.serialize(T, st.get(), &aw.writer) catch return "null";
+                            return aw.written();
+                        }
+                    }.get,
+                    .applyJson = &struct {
+                        fn apply(ptr: *anyopaque, json: []const u8) void {
+                            const st: *reactivity.State(T) = @ptrCast(@alignCast(ptr));
+                            const val = zx.prop.parse(T, client_allocator, json);
+                            st.set(val);
+                        }
+                    }.apply,
+                };
+            }
+
+            const h_id = blk: {
+                self._handler_index += 1;
+                break :blk self._handler_index;
+            };
+
+            const server_evt_ctx = alloc.create(zx.EventHandler.ServerEventCallbackCtx) catch @panic("OOM");
+            server_evt_ctx.* = .{
+                .handler_id = h_id,
+                .bound_states = bound_states_arr,
+            };
+
+            return zx.EventHandler.createServerEvent(
+                h_id,
+                &ServerWrapper.wrap,
+                @ptrCast(server_evt_ctx),
+                bound_states_arr,
+            );
+        }
+
+        /// Bind an event handler. Signature is detected at comptime:
+        ///
+        ///   fn(*EventContext) void
+        ///     → client-side handler; state accessed via `e.state(T)` in call order.
+        ///
+        ///   fn(*zx.StateContext) void
+        ///     → server-side handler (no event data needed); ALL component states are
+        ///       automatically serialized and round-tripped. Access them via `sc.state(T)`
+        ///       in the same order as `ctx.state(T)` in the render function.
+        ///
+        ///   fn(zx.ServerEventContext, *zx.StateContext) void
+        ///     → same as above but also receives the event context (value, payload, etc.).
+        ///
+        /// Use `sbind(handler, .{state1, state2})` to bind only specific states.
+        pub fn bind(self: *Self, comptime handler: anytype) zx.EventHandler {
+            const HandlerType = @TypeOf(handler);
+            const FnType = switch (@typeInfo(HandlerType)) {
+                .@"fn" => HandlerType,
+                .pointer => |p| p.child,
+                else => @compileError("bind: expected a function or function pointer"),
+            };
+            const params = @typeInfo(FnType).@"fn".params;
+
+            if (comptime params.len == 1 and params[0].type.? == *EventContext) {
+                // Client-side binding
+                const alloc = if (platform == .browser) client_allocator else self.allocator;
+                const cid_ptr = alloc.create([]const u8) catch @panic("OOM");
+                cid_ptr.* = alloc.dupe(u8, self._component_id) catch @panic("OOM");
+
+                return .{
+                    .callback = &struct {
+                        fn wrapper(ctx: *anyopaque, event: EventContext) void {
+                            const cid_p: *[]const u8 = @ptrCast(@alignCast(ctx));
+                            var e = event;
+                            e._component_id = cid_p.*;
+                            e._state_index = 0;
+                            handler(&e);
+                        }
+                    }.wrapper,
+                    .context = @ptrCast(cid_ptr),
+                };
+            } else if (comptime (params.len == 2 and
+                params[0].type.? == zx.ServerEventContext and
+                params[1].type.? == *zx.StateContext) or
+                (params.len == 1 and params[0].type.? == *zx.StateContext))
+            {
+                // Server-side binding (auto-bind all states)
+                const ServerWrapper = struct {
+                    fn wrap(ctx: *zx.ServerEventContext) void {
+                        const n = ctx.payload.states.len;
+                        const outputs = ctx.allocator.alloc([]u8, n) catch return;
+                        for (ctx.payload.states, 0..) |s, i| {
+                            outputs[i] = ctx.allocator.dupe(u8, s) catch "";
+                        }
+                        const sc = ctx.allocator.create(zx.StateContext) catch return;
+                        sc.* = zx.StateContext{
+                            ._allocator = ctx.allocator,
+                            ._inputs = ctx.payload.states,
+                            ._outputs = outputs,
+                        };
+                        if (comptime params.len == 2) {
+                            handler(ctx.*, sc);
+                        } else {
+                            handler(sc);
+                        }
+                        ctx._state_ctx = sc;
+                    }
+                };
+
+                const alloc = if (platform == .browser) client_allocator else self.allocator;
+                const bound_states = reactivity.collectStateBoundEntries(
+                    alloc,
+                    self._component_id,
+                    self._state_index,
+                );
+
+                const h_id = blk: {
+                    self._handler_index += 1;
+                    break :blk self._handler_index;
+                };
+
+                const server_evt_ctx = alloc.create(zx.EventHandler.ServerEventCallbackCtx) catch @panic("OOM");
+                server_evt_ctx.* = .{
+                    .handler_id = h_id,
+                    .bound_states = bound_states,
+                    .send_event_value = comptime params.len == 2,
+                };
+
+                return zx.EventHandler.createServerEvent(
+                    h_id,
+                    &ServerWrapper.wrap,
+                    @ptrCast(server_evt_ctx),
+                    bound_states,
+                );
+            } else {
+                @compileError("bind: handler must be fn(*EventContext) void, fn(*StateContext) void, or fn(ServerEventContext, *StateContext) void");
+            }
         }
     };
 }

@@ -84,7 +84,7 @@ pub const VNode = struct {
                 _ = text;
             },
             .component_fn => |comp_fn| {
-                const resolved = try comp_fn.callFn(comp_fn.propsPtr, allocator);
+                const resolved = try comp_fn.call();
                 allocator.destroy(self);
                 return try createFromComponent(allocator, resolved);
             },
@@ -338,10 +338,11 @@ pub fn deinit(self: *VDOMTree, allocator: zx.Allocator) void {
 }
 
 pub fn resolveComponent(allocator: zx.Allocator, component: zx.Component) !zx.Component {
+    _ = allocator;
     var curr = component;
     while (true) {
         switch (curr) {
-            .component_fn => |comp_fn| curr = try comp_fn.callFn(comp_fn.propsPtr, allocator),
+            .component_fn => |comp_fn| curr = try comp_fn.call(),
             else => return curr,
         }
     }

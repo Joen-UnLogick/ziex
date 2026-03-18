@@ -47,6 +47,10 @@ pub extern "__zx" fn _wsConnect(ws_id: u64, url_ptr: [*]const u8, url_len: usize
 pub extern "__zx" fn _wsSend(ws_id: u64, data_ptr: [*]const u8, data_len: usize, is_binary: u8) void;
 pub extern "__zx" fn _wsClose(ws_id: u64, code: u16, reason_ptr: [*]const u8, reason_len: usize) void;
 
+// ── Location ──────────────────────────────────────────────────────────────────
+/// Write window.location.href into buf. Returns the number of bytes written.
+pub extern "__zx" fn _getLocationHref(buf: [*]u8, buf_len: usize) usize;
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 pub extern "__zx" fn _fetchAsync(
     url_ptr: [*]const u8,

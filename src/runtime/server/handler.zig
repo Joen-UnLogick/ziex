@@ -935,9 +935,100 @@ pub fn Handler(comptime AppCtxType: type) type {
                 // Check if this route has a page handler
                 const page_fn = route.page orelse return self.notFound(req, res);
 
+                // -- Server action dispatch --
+                if (req.header("x-zx-action")) |_| {
+                    // Fast path: handler already registered from a prior GET render.
+                    if (registry.get(route.path)) |action_fn| {
+                        const action_ctx = zx.ActionContext{
+                            .request = abstract_req,
+                            .response = abstract_res,
+                            .allocator = allocator,
+                            .arena = req.arena,
+                        };
+                        action_fn(action_ctx);
+                        return;
+                    }
+                    // Slow path: no prior GET — render page to populate registry, then dispatch.
+                    var page_component = page_fn(pagectx) catch |err| return self.uncaughtError(req, res, err);
+                    var discard = std.Io.Writer.Allocating.init(req.arena);
+                    rndr.current_route_path = route.path;
+                    page_component.render(&discard.writer) catch {};
+                    rndr.current_route_path = null;
+                    if (registry.get(route.path)) |action_fn| {
+                        const action_ctx = zx.ActionContext{
+                            .request = abstract_req,
+                            .response = abstract_res,
+                            .allocator = allocator,
+                            .arena = req.arena,
+                        };
+                        action_fn(action_ctx);
+                    } else {
+                        res.status = 400;
+                        res.body = "No action handler registered for this route";
+                    }
+                    return;
+                }
+
+                if (req.header("x-zx-server-event")) |_| {
+                    const payload = zx.prop.parse(
+                        zx.EventHandler.ServerEventPayload,
+                        req.arena,
+                        req.body(),
+                    );
+                    // Current registry:
+                    // std.debug.print("SERVER EVENT REQ: [{s}:{d}]\n", .{ route.path, payload.handler_id });
+                    if (registry.getEvent(route.path, payload.handler_id)) |event_fn| {
+                        var event_ctx = zx.ServerEventContext{
+                            .allocator = allocator,
+                            .arena = req.arena,
+                            .payload = payload,
+                        };
+                        event_fn(&event_ctx);
+                        res.content_type = .JSON;
+                        if (event_ctx._state_ctx) |sc| {
+                            var aw = std.Io.Writer.Allocating.init(allocator);
+                            try zx.prop.serialize([][]u8, sc._outputs, &aw.writer);
+                            res.body = aw.written();
+                        } else {
+                            res.body = "{}";
+                        }
+                        return;
+                    }
+                    // Slow path: no prior GET — render page to populate registry, then dispatch.
+                    var page_component = page_fn(pagectx) catch |err| return self.uncaughtError(req, res, err);
+                    var discard = std.Io.Writer.Allocating.init(req.arena);
+                    rndr.current_route_path = route.path;
+                    page_component.render(&discard.writer) catch {};
+                    rndr.current_route_path = null;
+                    if (registry.getEvent(route.path, payload.handler_id)) |event_fn| {
+                        var event_ctx = zx.ServerEventContext{
+                            .allocator = allocator,
+                            .arena = req.arena,
+                            .payload = payload,
+                        };
+                        event_fn(&event_ctx);
+                        res.content_type = .JSON;
+                        if (event_ctx._state_ctx) |sc| {
+                            var aw = std.Io.Writer.Allocating.init(allocator);
+                            try zx.prop.serialize([][]u8, sc._outputs, &aw.writer);
+                            res.body = aw.written();
+                        } else {
+                            res.body = "{}";
+                        }
+                    } else {
+                        res.status = 400;
+                        res.body = "No server event handler registered for this route";
+                    }
+                    return;
+                }
+
                 // Handle route rendering with error handling
                 blk: {
                     const normalized_route_path = route.path;
+
+                    // Set route path so render pass registers any action handlers.
+                    rndr.current_route_path = route.path;
+                    defer rndr.current_route_path = null;
 
                     var page_component = page_fn(pagectx) catch |err| {
                         return self.uncaughtError(req, res, err);
@@ -1489,6 +1580,8 @@ const zx = @import("../../root.zig");
 const httpz_adapter = @import("adapter.zig");
 const pubsub = @import("pubsub.zig");
 const rndr = @import("render.zig");
+const ctxs = @import("../../contexts.zig");
+const registry = @import("registry.zig");
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;

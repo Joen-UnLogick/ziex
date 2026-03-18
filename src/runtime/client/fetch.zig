@@ -13,6 +13,7 @@ const Headers = Fetch.Headers;
 const RequestInit = Fetch.RequestInit;
 const FetchError = Fetch.FetchError;
 const ResponseCallback = Fetch.ResponseCallback;
+const ResponseCallbackCtx = Fetch.ResponseCallbackCtx;
 
 pub const is_wasm = window.is_wasm;
 var next_fetch_id: u64 = 1;
@@ -65,6 +66,50 @@ pub fn fetchAsync(
     );
 }
 
+/// Like fetchAsync but the callback receives an opaque context pointer.
+pub fn fetchAsyncCtx(
+    allocator: std.mem.Allocator,
+    url: []const u8,
+    init: RequestInit,
+    ctx: *anyopaque,
+    callback: ResponseCallbackCtx,
+) void {
+    const fetch_id = next_fetch_id;
+    next_fetch_id +%= 1;
+
+    const slot_index = findOrAllocSlot(fetch_id);
+    if (slot_index == null) {
+        callback(ctx, null, error.TooManyPendingRequests);
+        return;
+    }
+
+    pending_slots[slot_index.?] = PendingFetch{
+        .active = true,
+        .fetch_id = fetch_id,
+        .callback_ctx_fn = callback,
+        .callback_ctx = ctx,
+        .allocator = allocator,
+    };
+
+    const method_str = @tagName(init.method);
+    var headers_buf: [8192]u8 = undefined;
+    const headers_json = serializeHeadersJson(init.headers, &headers_buf);
+    const body = init.body orelse "";
+
+    ext._fetchAsync(
+        url.ptr,
+        url.len,
+        method_str.ptr,
+        method_str.len,
+        headers_json.ptr,
+        headers_json.len,
+        body.ptr,
+        body.len,
+        init.timeout_ms,
+        fetch_id,
+    );
+}
+
 // ============================================================================
 // Callback Registry
 // ============================================================================
@@ -75,6 +120,8 @@ const PendingFetch = struct {
     active: bool = false,
     fetch_id: u64 = 0,
     callback: ?ResponseCallback = null,
+    callback_ctx_fn: ?ResponseCallbackCtx = null,
+    callback_ctx: ?*anyopaque = null,
     allocator: std.mem.Allocator = undefined,
 };
 
@@ -113,14 +160,28 @@ export fn __zx_fetch_complete(
     const slot_idx = findSlotByFetchId(fetch_id) orelse return;
     var slot = &pending_slots[slot_idx];
 
-    const callback = slot.callback orelse return;
+    // Must have at least one callback registered.
+    if (slot.callback == null and slot.callback_ctx_fn == null) return;
+
     const allocator = slot.allocator;
+    const plain_cb = slot.callback;
+    const ctx_cb = slot.callback_ctx_fn;
+    const ctx_ptr = slot.callback_ctx;
 
     slot.active = false;
     slot.callback = null;
+    slot.callback_ctx_fn = null;
+    slot.callback_ctx = null;
+
+    // Helper to dispatch errors to whichever callback is registered.
+    const dispatchErr = struct {
+        fn call(pcb: ?ResponseCallback, ccb: ?ResponseCallbackCtx, cp: ?*anyopaque, err: FetchError) void {
+            if (ccb) |cb| cb(cp.?, null, err) else if (pcb) |cb| cb(null, err);
+        }
+    }.call;
 
     if (is_error != 0) {
-        callback(null, error.NetworkError);
+        dispatchErr(plain_cb, ctx_cb, ctx_ptr, error.NetworkError);
         return;
     }
 
@@ -130,7 +191,7 @@ export fn __zx_fetch_complete(
             if (comptime is_wasm) {
                 std.heap.wasm_allocator.free(body_ptr[0..body_len]);
             }
-            callback(null, error.OutOfMemory);
+            dispatchErr(plain_cb, ctx_cb, ctx_ptr, error.OutOfMemory);
             return;
         }
     else
@@ -145,7 +206,7 @@ export fn __zx_fetch_complete(
     // Allocate Response on heap
     const response = allocator.create(Response) catch {
         if (body_data.len > 0) allocator.free(body_data);
-        callback(null, error.OutOfMemory);
+        dispatchErr(plain_cb, ctx_cb, ctx_ptr, error.OutOfMemory);
         return;
     };
 
@@ -159,7 +220,11 @@ export fn __zx_fetch_complete(
         ._owns_memory = true,
     };
 
-    callback(response, null);
+    if (ctx_cb) |cb| {
+        cb(ctx_ptr.?, response, null);
+    } else if (plain_cb) |cb| {
+        cb(response, null);
+    }
 }
 
 // ============================================================================

@@ -203,6 +203,7 @@ body {
     flex: 1;
     text-align: left;
     animation: fadeInUp 0.8s ease-out;
+    z-index: 2;
 }
 
 .hero-mascot {
@@ -2541,7 +2542,7 @@ body {
     .hero-inner {
         display: flex;
         flex-direction: column;
-        padding-top: 6rem;
+        padding-top: 0rem;
     }
 
     .hero-content {
@@ -2551,7 +2552,7 @@ body {
 
     .hero-mascot {
         position: absolute;
-        top: 10px;
+        top: -75px;
         right: -10px;
         width: 270px;
         opacity: 0.9;

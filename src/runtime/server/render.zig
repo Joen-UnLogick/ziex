@@ -1,5 +1,10 @@
 const std = @import("std");
 const zx = @import("../../root.zig");
+const registry = @import("registry.zig");
+
+/// Set by handler.zig before calling render/stream so that any ActionContext
+/// handlers encountered during the render pass are registered for this route.
+pub var current_route_path: ?[]const u8 = null;
 
 pub const streaming_bootstrap_script =
     \\<script>window.$ZX=function(id,html){var t=document.getElementById('__ZX_S-'+id);if(t){var d=document.createElement('div');d.innerHTML=html;while(d.firstChild)t.parentNode.insertBefore(d.firstChild,t);t.remove();}}</script>
@@ -215,12 +220,28 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
             // Handle attributes
             if (elem.attributes) |attributes| {
+                var has_action_handler = false;
+                var has_method = false;
+
                 for (attributes) |attribute| {
                     if (attribute.handler) |handler| {
-                        // try writer.print(" {s}", .{attribute.name});
-                        // try handler(.{});
-                        _ = handler;
+                        // Register ActionContext handlers so the server can dispatch them.
+                        if (handler.action_fn) |action_fn| {
+                            if (current_route_path) |rp| {
+                                registry.register(rp, action_fn);
+                            }
+                            has_action_handler = true;
+                        }
+
+                        if (handler.server_event_fn) |action_fn| {
+                            if (current_route_path) |rp| {
+                                registry.registerEvent(rp, handler.handler_id, action_fn);
+                            }
+                        }
                     } else {
+                        if (std.mem.eql(u8, attribute.name, "method")) {
+                            has_method = true;
+                        }
                         try writer.print(" {s}", .{attribute.name});
                     }
                     if (attribute.value) |value| {
@@ -228,6 +249,11 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                         try escapeHtmlAttrVal(writer, value);
                         try writer.writeAll("\"");
                     }
+                }
+
+                // Mimic Next.js: auto-inject method="post" on form elements with an action handler
+                if (elem.tag == .form and has_action_handler and !has_method) {
+                    try writer.writeAll(" method=\"post\"");
                 }
             }
 

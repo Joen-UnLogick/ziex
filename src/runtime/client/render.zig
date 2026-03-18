@@ -137,10 +137,25 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
             const ref_id = ext._ce(@intFromEnum(elem.tag), vnode.id);
 
             if (elem.attributes) |attrs| {
+                var has_action_handler = false;
+                var has_method = false;
+
                 for (attrs) |attr| {
                     if (std.mem.eql(u8, attr.name, "key")) continue;
+                    if (attr.handler) |handler| {
+                        if (handler.action_fn != null) has_action_handler = true;
+                        continue;
+                    }
+                    if (std.mem.eql(u8, attr.name, "method")) has_method = true;
                     const val = attr.value orelse "";
                     ext._sa(vnode.id, attr.name.ptr, attr.name.len, val.ptr, val.len);
+                }
+
+                // Mimic Next.js: auto-inject method="post" on form elements with an action handler
+                if (elem.tag == .form and has_action_handler and !has_method) {
+                    const method = "method";
+                    const post = "post";
+                    ext._sa(vnode.id, method.ptr, method.len, post.ptr, post.len);
                 }
             }
 

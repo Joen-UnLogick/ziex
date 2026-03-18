@@ -481,6 +481,13 @@ export class ZxBridge {
                         cleanupDomNodes(oldChild);
                     }
                 },
+
+                _getLocationHref: (bufPtr: number, bufLen: number): number => {
+                    const bytes = textEncoder.encode(window.location.href);
+                    const len = Math.min(bytes.length, bufLen);
+                    writeBytes(bufPtr, bytes.subarray(0, len));
+                    return len;
+                },
             },
         };
     }
