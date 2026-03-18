@@ -61,7 +61,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
 fn transpile(ctx: zli.CommandContext) !void {
     const outdir = ctx.flag("outdir", []const u8);
-    const copy_dirs = [_][]const u8{ "assets", "public" };
+
     const copy_only = ctx.flag("copy-only", bool);
     const verbose = ctx.flag("verbose", bool);
     const sourcemap_str = ctx.flag("map", []const u8);
@@ -84,20 +84,8 @@ fn transpile(ctx: zli.CommandContext) !void {
     }
 
     // std.debug.print("Copying only the files to the output directory: from {s} to {s} (copy_only: {any})\n", .{ path, outdir, copy_only });
-    for (copy_dirs) |dir| {
-        const cp_src_path = try std.fs.path.join(ctx.allocator, &.{ path, dir });
-        const cp_dst_path = try std.fs.path.join(ctx.allocator, &.{ outdir, dir });
-        defer ctx.allocator.free(cp_src_path);
-        defer ctx.allocator.free(cp_dst_path);
-        if (verbose) std.debug.print("Copying directory: {s} -> {s}\n", .{ cp_src_path, cp_dst_path });
-        copyOnly(ctx, cp_src_path, cp_dst_path) catch |err| switch (err) {
-            error.FileNotFound => {},
-            else => {
-                std.debug.print("Error: Could not copy directory '{s} -> {s}': {}\n", .{ cp_src_path, outdir, err });
-                return err;
-            },
-        };
-    }
+    // We no longer copy assets/public here, as it's now handled by the Zig build system
+
 
     if (copy_only) return copyOnly(ctx, path, outdir) catch |err| {
         std.debug.print("Error: Could not copy path '{s} -> {s}': {}\n", .{ path, outdir, err });

@@ -26,6 +26,9 @@ pub fn build(b: *std.Build) !void {
         .client = .{
             .jsglue_href = "/assets/main.js?=" ++ build_zon.version,
         },
+        .cli = .{
+            .optimize = optimize,
+        },
     });
 
     var assetsdir = zx_build.assetsdir;
@@ -67,4 +70,14 @@ pub fn build(b: *std.Build) !void {
             .outdir = assetsdir.path(b, "playground/"),
         },
     }));
+
+    if (target.result.os.tag == .wasi)
+        zx_build.addElement(.{
+            .parent = .body,
+            .position = .ending,
+            .element = .{
+                .tag = "script",
+                .attributes = "src=\"/assets/main.js?=" ++ build_zon.version ++ "\"",
+            },
+        });
 }

@@ -821,7 +821,7 @@ pub const ServerMeta = struct {
     pub const CliCommand = enum { dev, serve, @"export" };
 
     routes: []const Route,
-    rootdir: []const u8,
+    rootdir: ?[]const u8,
     cli_command: ?CliCommand = null,
 };
 

@@ -29,6 +29,7 @@ WORKDIR /build
 # Zig Dep
 COPY build.zig build.zig.zon ./
 RUN zig build --fetch
+RUN zig build zx -- version
 
 COPY . .
 
@@ -38,4 +39,4 @@ RUN zig build zx -- bundle
 # Run the app
 FROM alpine:3.22.2
 COPY --from=build /build/bundle/ /app/
-ENTRYPOINT ["/app/$BIN_NAME", "--rootdir", "./app"]
+ENTRYPOINT ["/app/$BIN_NAME", "--rootdir", "./app/static"]

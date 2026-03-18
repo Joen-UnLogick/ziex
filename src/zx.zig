@@ -598,9 +598,9 @@ pub const ZxContext = struct {
 
         // If client option is set, return a client component (for @rendering={.client})
         // Render the component on the server for SSR, then hydrate on client.
-        // On WASM (already on the client), skip the CSR wrapper — just render
+        // On Browser (already on the client), skip the CSR wrapper — just render
         // the component directly as a component_fn.
-        if (options.client != null and comptime @import("builtin").cpu.arch == .wasm32) {
+        if (options.client != null and zx.platform == .browser) {
             return .{ .component_fn = comp_fn };
         }
         if (options.client) |client_opts| {

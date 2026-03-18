@@ -1,6 +1,7 @@
 const std = @import("std");
 const zx = @import("../../root.zig");
 const kv = @import("kv.zig");
+const render = @import("../server/render.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;
@@ -137,6 +138,7 @@ pub fn run() !void {
                     if (Router.renderErrorComponent(allocator, request, response, pathname, err)) |cmp| {
                         wasi_res.body.deinit();
                         wasi_res.body = .init(allocator);
+                        render.current_route_path = pathname;
                         cmp.render(&wasi_res.body.writer) catch {};
                     }
                 };
@@ -180,6 +182,7 @@ pub fn run() !void {
                 if (Router.renderErrorComponent(allocator, request, response, pathname, err)) |cmp| {
                     wasi_res.body.deinit();
                     wasi_res.body = .init(allocator);
+                    render.current_route_path = pathname;
                     cmp.render(&wasi_res.body.writer) catch {};
                 }
                 wasi_res.setContentTypeStr("text/html");
@@ -191,6 +194,7 @@ pub fn run() !void {
 
             var aw = std.Io.Writer.Allocating.init(allocator);
             defer aw.deinit();
+            render.current_route_path = pathname;
             page_component.render(&aw.writer) catch {};
 
             wasi_res.setContentTypeStr("text/html");
@@ -208,6 +212,7 @@ pub fn run() !void {
     if (Router.renderNotFoundComponent(allocator, request, response, pathname, matched_route)) |cmp| {
         var aw = std.Io.Writer.Allocating.init(allocator);
         defer aw.deinit();
+        render.current_route_path = pathname;
         cmp.render(&aw.writer) catch {};
 
         try writeEdgeMeta(stderr, &wasi_res);

@@ -43,4 +43,4 @@ RUN cd site && zig build zx -- bundle
 FROM scratch
 WORKDIR /app
 COPY --from=build /build/site/bundle /app
-ENTRYPOINT ["/app/ziex_dev", "--rootdir", "/app"]
+ENTRYPOINT ["/app/ziex_dev", "--rootdir", "/app/static"]

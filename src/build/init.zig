@@ -1,5 +1,10 @@
 const std = @import("std");
+const injection = @import("init/injection.zig");
+
 const LazyPath = std.Build.LazyPath;
+const AddElementOptions = injection.AddElementOptions;
+const InjectionsGenStep = injection.InjectionsGenStep;
+
 pub const ZxInitOptions = @import("init/ZxInitOptions.zig");
 
 pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions) !Build {
@@ -14,7 +19,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
     });
 
     const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
-        .optimize = .ReleaseSafe, // Always in release mode for faster transpilation
+        .optimize = options.cli.optimize, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
     });
 
@@ -34,6 +39,8 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         .steps = .default,
         .copy_embedded_sources = false,
         .client = options.client,
+        .static_path = options.static_path,
+        .data_path = options.data_path,
     };
 
     if (options.app) |site_opts| {
@@ -41,12 +48,10 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         opts.copy_embedded_sources = site_opts.copy_embedded_sources;
     }
 
-    if (options.cli) |cli_opts| {
-        opts.cli_path = cli_opts.path;
+    opts.cli_path = options.cli.path;
 
-        if (cli_opts.steps) |cli_steps| {
-            opts.steps = cli_steps;
-        }
+    if (options.cli.steps) |cli_steps| {
+        opts.steps = cli_steps;
     }
 
     return initInner(b, exe, zx_exe, zx_module, zx_wasm_module, opts);
@@ -59,6 +64,9 @@ const InitInnerOptions = struct {
     steps: ZxInitOptions.CliOptions.Steps,
     copy_embedded_sources: bool,
     client: ?ZxInitOptions.ClientOptions = null,
+    static_path: ?LazyPath,
+    data_path: ?LazyPath,
+    element_injections: []const AddElementOptions = &.{},
 };
 
 fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
@@ -109,7 +117,44 @@ pub fn initInner(
     const zx_options = b.addOptions();
     zx_options.addOption(bool, "client_enabled", opts.client != null);
     zx_options.addOption(?[]const u8, "jsglue_href", if (opts.client) |client_opts| client_opts.jsglue_href else null);
+
+    const staticdir = if (opts.static_path) |p| p.getPath(b) else b.pathJoin(&.{ b.install_path, "static" });
+    const datadir = if (opts.data_path) |p| p.getPath(b) else b.pathJoin(&.{ b.install_path, "data" });
+
+    zx_options.addOption([]const u8, "staticdir", staticdir);
+    zx_options.addOption([]const u8, "datadir", datadir);
+
     zx_module.addOptions("zx_options", zx_options);
+
+    // --- ZX Injections --- //
+    const injections_step = try InjectionsGenStep.create(b);
+    for (opts.element_injections) |inj| {
+        injections_step.add(inj);
+    }
+    zx_module.addAnonymousImport("zx_injections", .{
+        .root_source_file = injections_step.getOutput(),
+    });
+    zx_wasm_module.addAnonymousImport("zx_injections", .{
+        .root_source_file = injections_step.getOutput(),
+    });
+
+    // --- Static Directory Setup --- //
+    {
+        const install_static = b.addInstallDirectory(.{
+            .source_dir = opts.site_path.path(b, "public"),
+            .install_dir = .prefix,
+            .install_subdir = "static",
+        });
+        exe.step.dependOn(&install_static.step);
+
+        // Also install the generated assets into static/assets
+        const install_assets = b.addInstallDirectory(.{
+            .source_dir = transpile_outdir.path(b, "assets"),
+            .install_dir = .prefix,
+            .install_subdir = "static/assets",
+        });
+        exe.step.dependOn(&install_assets.step);
+    }
 
     // --- ZX File Cache Invalidator ---
     watch: {
@@ -302,6 +347,8 @@ pub fn initInner(
             .exe = wasm_exe_opt.?,
             .root_module = wasm_zx_meta_module.?,
         } else null,
+        .injections_step = injections_step,
+        .zx_build_options = zx_options,
     };
 }
 
@@ -335,7 +382,12 @@ pub const Build = struct {
     server: BuildServer,
     client: ?BuildClient,
 
-    pub fn addPlugin(b: *Build, plugin: ZxInitOptions.PluginOptions) void {
+    /// Handle to the injections generator
+    injections_step: *InjectionsGenStep,
+    /// Handle to the build options module
+    zx_build_options: *std.Build.Step.Options,
+
+    pub fn addPlugin(self: *Build, plugin: ZxInitOptions.PluginOptions) void {
         for (plugin.steps) |*step| {
             switch (step.*) {
                 .command => {
@@ -347,8 +399,8 @@ pub const Build = struct {
                     // run.captured_stderr = null;
                     run.setName(plugin.name);
 
-                    const transpile_cmd = b.cmd.transpile;
-                    const exe = b.server.exe;
+                    const transpile_cmd = self.cmd.transpile;
+                    const exe = self.server.exe;
                     switch (step.command.type) {
                         .before_transpile => transpile_cmd.step.dependOn(&run.step),
                         .after_transpile => {
@@ -359,5 +411,9 @@ pub const Build = struct {
                 },
             }
         }
+    }
+
+    pub fn addElement(self: *Build, options: AddElementOptions) void {
+        self.injections_step.add(options);
     }
 };

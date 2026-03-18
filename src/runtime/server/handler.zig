@@ -1347,26 +1347,17 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         pub fn assets(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            const allocator = self.allocator;
-
-            const assets_path = try std.fs.path.join(allocator, &.{ self.meta.rootdir, req.url.path });
-            defer allocator.free(assets_path);
-
-            const body = std.fs.cwd().readFileAlloc(allocator, assets_path, std.math.maxInt(usize)) catch |err| {
-                switch (err) {
-                    error.FileNotFound => return self.notFound(req, res),
-                    else => return self.uncaughtError(req, res, err),
-                }
-            };
-
-            res.content_type = httpz.ContentType.forFile(req.url.path);
-            res.body = body;
+            try self.static(req, res);
+        }
+        pub fn public(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
+            try self.static(req, res);
         }
 
-        pub fn public(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
+        pub inline fn static(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
             const allocator = self.allocator;
 
-            const assets_path = try std.fs.path.join(allocator, &.{ self.meta.rootdir, "public", req.url.path });
+            const rootdir = self.meta.rootdir orelse zx_options.staticdir;
+            const assets_path = try std.fs.path.join(allocator, &.{ rootdir, req.url.path });
             defer allocator.free(assets_path);
 
             const body = std.fs.cwd().readFileAlloc(allocator, assets_path, std.math.maxInt(usize)) catch |err| {

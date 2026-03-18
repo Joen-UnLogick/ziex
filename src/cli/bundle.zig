@@ -80,11 +80,6 @@ fn bundle(ctx: zli.CommandContext) !void {
     defer ctx.allocator.free(dest_binpath);
     log.debug("Copying bin from {s} to outdir {s}", .{ final_binpath, dest_binpath });
 
-    // Delete the outdir if it exists
-    // std.fs.cwd().deleteTree(outdir) catch |err| switch (err) {
-    //     else => {},
-    // };
-
     if (!(docker or docker_compose)) {
         std.fs.cwd().makePath(outdir) catch |err| switch (err) {
             error.PathAlreadyExists => {},
@@ -93,11 +88,20 @@ fn bundle(ctx: zli.CommandContext) !void {
         try std.fs.cwd().copyFile(final_binpath, std.fs.cwd(), dest_binpath, .{});
         printer.filepath(bin_name);
 
-        log.debug("Copying public directory! {s}", .{appoutdir});
-        util.copydirs(ctx.allocator, appoutdir, &.{ "public", "assets" }, outdir, false, &printer) catch |err| {
-            std.log.err("Failed to copy public directory: {any}", .{err});
-            // return err;
+        const static_outdir = try std.fs.path.join(ctx.allocator, &.{ outdir, "static" });
+        defer ctx.allocator.free(static_outdir);
+        log.debug("Copying static directory! {s}", .{appoutdir});
+        util.copydirs(ctx.allocator, appoutdir, &.{ "public", "assets" }, static_outdir, true, &printer) catch |err| {
+            std.log.err("Failed to copy static directories: {any}", .{err});
         };
+
+        // Clean up old directories if they exist
+        const old_public = try std.fs.path.join(ctx.allocator, &.{ outdir, "public" });
+        const old_assets = try std.fs.path.join(ctx.allocator, &.{ outdir, "assets" });
+        defer ctx.allocator.free(old_public);
+        defer ctx.allocator.free(old_assets);
+        std.fs.cwd().deleteTree(old_public) catch {};
+        std.fs.cwd().deleteTree(old_assets) catch {};
     }
 
     // Delete {outdir}/.well-known/_zx if it exists
@@ -111,14 +115,13 @@ fn bundle(ctx: zli.CommandContext) !void {
     const dockerfile_content = @embedFile("init/template/Dockerfile");
 
     if (docker or docker_compose) {
-
         // Replace $BIN_NAME
         const dockerfile_content_with_bin_name = try std.mem.replaceOwned(u8, ctx.allocator, dockerfile_content, "$BIN_NAME", bin_name);
         const compose_content_with_bin_name = try std.mem.replaceOwned(u8, ctx.allocator, compose_content, "$BIN_NAME", bin_name);
         defer ctx.allocator.free(dockerfile_content_with_bin_name);
         defer ctx.allocator.free(compose_content_with_bin_name);
 
-        // Replace $BUILD_ARGS in template/Dockerfile and template/compose.yml with build_args
+        // Replace $BUILD_ARGS
         const dockerfile_content_with_build_args = try std.mem.replaceOwned(u8, ctx.allocator, dockerfile_content_with_bin_name, "$BUILD_ARGS", build_args);
         const compose_content_with_build_args = try std.mem.replaceOwned(u8, ctx.allocator, compose_content_with_bin_name, "$BUILD_ARGS", build_args);
         defer ctx.allocator.free(dockerfile_content_with_build_args);
@@ -152,7 +155,7 @@ fn bundle(ctx: zli.CommandContext) !void {
             printer.footer("Now run {s}\n\n{s}docker build -t {s} . \ndocker run -p {d}:{d} {s}{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, bin_name, port, port, bin_name, tui.Colors.reset });
         }
     } else {
-        printer.footer("Now run {s}\n\n{s}(cd {s} && ./{s} --rootdir ./){s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, outdir, bin_name, tui.Colors.reset });
+        printer.footer("Now run {s}\n\n{s}(cd {s} && ./{s} --rootdir ./static){s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, outdir, bin_name, tui.Colors.reset });
     }
 }
 

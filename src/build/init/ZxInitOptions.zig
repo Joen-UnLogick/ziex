@@ -52,6 +52,9 @@ pub const CliOptions = struct {
     steps: ?Steps = .{
         .dev = "dev",
     },
+
+    /// Optimize mode for the ZX CLI executable.
+    optimize: ?std.builtin.OptimizeMode = .ReleaseFast,
 };
 
 /// Configuration for the ZX app directory.
@@ -125,7 +128,7 @@ app: ?AppOptions = null,
 ///
 /// Controls which ZX CLI executable to use and which build steps to create.
 /// If `null`, uses default configuration with ZX CLI from dependency source.
-cli: ?CliOptions = null,
+cli: CliOptions = .{},
 
 /// Enable Client-Side Rendering (CSR) support.
 ///
@@ -139,6 +142,16 @@ client: ?ClientOptions = .default,
 /// Enable cutting-edge ZX features that may have breaking changes in the future.
 /// If `null`, all experimental features are disabled.
 experimental: ?ExperimentalOptions = null,
+
+/// Path to the directory where static files (compiled assets, public files) are stored.
+///
+/// If `null`, defaults to `zig-out/static` in your project root.
+static_path: ?LazyPath = null,
+
+/// Path to the directory where app data (databases, KV stores, logs) is stored.
+///
+/// If `null`, defaults to `data` directory in your project root.
+data_path: ?LazyPath = null,
 
 // /// Plugin configurations for extending the build process.
 // ///

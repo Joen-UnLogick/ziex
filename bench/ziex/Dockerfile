@@ -31,4 +31,4 @@ FROM alpine:3.22.2
 RUN apk add --no-cache curl
 COPY --from=build /build/bench/ziex/bundle /app
 
-ENTRYPOINT ["/app/zx_bench_client", "--rootdir", "./app"]
+ENTRYPOINT ["/app/zx_bench_client", "--rootdir", "./app/static"]

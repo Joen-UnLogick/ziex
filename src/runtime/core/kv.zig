@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const zx_options = @import("zx_options");
 
 // -- Public types -- //
 pub const PutOptions = struct {
@@ -88,9 +89,8 @@ const noop_vtable = VTable{
     .list = &noopList,
 };
 
-// -- Impl: Filesystem (native default — persists to .zig-cache/tmp/ziex/kv/<ns>/) -- //
-
-const kv_store_base = ".zig-cache/tmp/ziex/kv";
+// -- Impl: Filesystem (native default — persists to datadir/kv/<ns>/) -- //
+const kv_store_base = zx_options.datadir ++ std.fs.path.sep_str ++ "kv";
 
 fn keyPath(ns: []const u8, key: []const u8, buf: *[1024]u8) ?[]u8 {
     const encoded_len = std.base64.url_safe_no_pad.Encoder.calcSize(key.len);
