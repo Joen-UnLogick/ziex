@@ -23,7 +23,7 @@ pub const DispatchResult = union(enum) {
 
 /// Returns true if the request is a server action request.
 /// Checks for the x-zx-action header (JS fetch) or __zx_action in the form body (no-JS form POST).
-pub fn isActionRequest(request: zx.Request) bool {
+pub fn isActionRequest(request: zx.server.Request) bool {
     if (request.headers.has("x-zx-action")) return true;
     const body = request.text() orelse return false;
     const ct = request.headers.get("content-type") orelse "";
@@ -56,8 +56,8 @@ fn slowPathRender(
 /// to rendering the page to populate the registry before retrying.
 /// Returns `not_triggered` if the request is not a server action.
 pub fn dispatchAction(
-    request: zx.Request,
-    response: zx.Response,
+    request: zx.server.Request,
+    response: zx.server.Response,
     allocator: std.mem.Allocator,
     arena: std.mem.Allocator,
     route_path: []const u8,
@@ -104,7 +104,7 @@ pub fn dispatchAction(
 /// to rendering the page to populate the registry before retrying.
 /// Returns `not_triggered` if the request is not a server event.
 pub fn dispatchServerEvent(
-    request: zx.Request,
+    request: zx.server.Request,
     allocator: std.mem.Allocator,
     arena: std.mem.Allocator,
     route_path: []const u8,
@@ -116,7 +116,7 @@ pub fn dispatchServerEvent(
     const payload = zx.util.zxon.parse(zx.EventHandler.ServerEventPayload, arena, request.text() orelse return .not_found, .{}) catch return .not_found;
 
     if (registry.getEvent(route_path, payload.handler_id)) |event_fn| {
-        var event_ctx = zx.ServerEventContext{
+        var event_ctx = zx.server.Event{
             .allocator = allocator,
             .arena = arena,
             .payload = payload,
@@ -134,7 +134,7 @@ pub fn dispatchServerEvent(
     }
 
     if (registry.getEvent(route_path, payload.handler_id)) |event_fn| {
-        var event_ctx = zx.ServerEventContext{
+        var event_ctx = zx.server.Event{
             .allocator = allocator,
             .arena = arena,
             .payload = payload,

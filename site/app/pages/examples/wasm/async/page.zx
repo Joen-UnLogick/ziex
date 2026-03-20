@@ -21,13 +21,15 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 }
 
 // Timer state
-var interval_count: u32 = 0;
+var interval_count: *zx.State(u32) = undefined;
 var interval_id: ?u64 = null;
 
 /// Timer Demo Component
-pub fn TimerDemo(allocator: zx.Allocator) zx.Component {
+pub fn TimerDemo(ctx: *zx.ComponentContext) zx.Component {
+    interval_count = ctx.state(u32, 0);
+
     return (
-        <div @{allocator} class="timer-demo">
+        <div @allocator={ctx.allocator} class="timer-demo">
             <h3 class="timer-title">⏱️ Timer Demo</h3>
             <p class="timer-subtitle">Test setTimeout and setInterval from WASM</p>
 
@@ -64,17 +66,14 @@ fn toggleInterval(_: zx.EventContext) void {
         interval_id = null;
         std.log.info("Interval stopped", .{});
     } else {
-        interval_count = 0;
+        interval_count.set(0);
         interval_id = zx.client.setInterval(&onIntervalTick, 1000);
         std.log.info("Interval started (every 1 second)", .{});
     }
-
-    zx.rerender();
 }
 
 fn onIntervalTick() void {
-    interval_count += 1;
-    zx.rerender();
+    interval_count.set(interval_count.get() + 1);
 }
 
 fn onTimeoutFired() void {

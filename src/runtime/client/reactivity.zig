@@ -665,7 +665,7 @@ pub const EventHandler = struct {
     /// Takes a pointer so the server wrapper can write `_state_ctx` back after the call.
     action_fn: ?*const fn (*zx.ActionContext) void = null,
     /// Server-side handler; takes *ServerEventContext so the wrapper can set _state_ctx.
-    server_event_fn: ?*const fn (*zx.ServerEventContext) void = null,
+    server_event_fn: ?*const fn (*zx.server.Event) void = null,
     /// Unique ID for this handler instance on the current page.
     handler_id: u32 = 0,
     /// States to serialize/deserialize for server event round-trips.
@@ -698,10 +698,10 @@ pub const EventHandler = struct {
                         .action_fn = &Wrap.w,
                     };
                 },
-                zx.ServerEventContext => {
+                zx.server.Event => {
                     // Wrap to the canonical *ServerEventContext signature used by the registry.
                     const Wrapper = struct {
-                        fn w(ctx: *zx.ServerEventContext) void {
+                        fn w(ctx: *zx.server.Event) void {
                             func(ctx.*);
                         }
                     };
@@ -757,7 +757,7 @@ pub const EventHandler = struct {
             if (comptime @typeInfo(arg_type) == .@"struct" and
                 arg_type != zx.ActionContext and
                 arg_type != zx.EventContext and
-                arg_type != zx.ServerEventContext)
+                arg_type != zx.server.Event)
             {
                 const DirectTyped = struct {
                     fn w(ctx: *zx.ActionContext) void {
@@ -845,7 +845,7 @@ pub const EventHandler = struct {
     /// with bound states without exposing the private serverEventHandler symbol.
     pub fn createServerEvent(
         handler_id: u32,
-        comptime server_fn: *const fn (*zx.ServerEventContext) void,
+        comptime server_fn: *const fn (*zx.server.Event) void,
         context: *anyopaque,
         bound_states: []const BoundStateEntry,
     ) EventHandler {

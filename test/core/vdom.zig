@@ -2,9 +2,9 @@ const std = @import("std");
 const zx = @import("zx");
 
 const testing = std.testing;
-const VDOMTree = zx.vdom.VDOMTree;
-const VNode = zx.vdom.VNode;
-const Patch = zx.vdom.Patch;
+const VDOMTree = zx.util.vdom.VDOMTree;
+const VNode = zx.util.vdom.VNode;
+const Patch = zx.util.vdom.Patch;
 
 test "same" {
     const allocator = testing.allocator;

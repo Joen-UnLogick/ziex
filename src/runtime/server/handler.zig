@@ -747,8 +747,8 @@ pub fn Handler(comptime AppCtxType: type) type {
             path: []const u8,
             local_proxy: ?App.Meta.ProxyHandler,
             local_proxy_name: []const u8,
-            req: zx.Request,
-            res: zx.Response,
+            req: zx.server.Request,
+            res: zx.server.Response,
             arena: std.mem.Allocator,
         ) !ProxyResult {
             _ = local_proxy_name;
@@ -780,17 +780,17 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         /// Execute proxy handlers for page routes
-        fn executePageProxy(self: *Self, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !ProxyResult {
+        fn executePageProxy(self: *Self, route: *const App.Meta.Route, req: zx.server.Request, res: zx.server.Response, arena: std.mem.Allocator) !ProxyResult {
             return self.executeProxyChain(route.path, route.page_proxy, "PageProxy", req, res, arena);
         }
 
         /// Execute proxy handlers for API routes
-        fn executeRouteProxy(self: *Self, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !ProxyResult {
+        fn executeRouteProxy(self: *Self, route: *const App.Meta.Route, req: zx.server.Request, res: zx.server.Response, arena: std.mem.Allocator) !ProxyResult {
             return self.executeProxyChain(route.path, route.route_proxy, "RouteProxy", req, res, arena);
         }
 
         /// Execute proxy handlers for notfound routes (only cascading Proxy(), no local proxies)
-        fn executeNotFoundProxy(self: *Self, _: *const App.Meta.Route, path: []const u8, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !ProxyResult {
+        fn executeNotFoundProxy(self: *Self, _: *const App.Meta.Route, path: []const u8, req: zx.server.Request, res: zx.server.Response, arena: std.mem.Allocator) !ProxyResult {
             return self.executeProxyChain(path, null, "", req, res, arena);
         }
 

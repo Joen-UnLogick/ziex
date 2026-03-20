@@ -1,46 +1,6 @@
 const std = @import("std");
-const kv = @import(".././core/kv.zig");
-
-const ext = struct {
-    /// ns selects the binding; writes value to buf.
-    /// Returns byte length, -1 if not found, -2 if buf too small.
-    pub extern "__zx_kv" fn kv_get(
-        ns_ptr: [*]const u8,
-        ns_len: usize,
-        key_ptr: [*]const u8,
-        key_len: usize,
-        buf_ptr: [*]u8,
-        buf_max: usize,
-    ) i32;
-
-    /// Returns 0 on success, negative on error.
-    pub extern "__zx_kv" fn kv_put(
-        ns_ptr: [*]const u8,
-        ns_len: usize,
-        key_ptr: [*]const u8,
-        key_len: usize,
-        val_ptr: [*]const u8,
-        val_len: usize,
-    ) i32;
-
-    /// Returns 0 on success, negative on error.
-    pub extern "__zx_kv" fn kv_delete(
-        ns_ptr: [*]const u8,
-        ns_len: usize,
-        key_ptr: [*]const u8,
-        key_len: usize,
-    ) i32;
-
-    /// Writes a JSON array of key names into buf. Returns byte length, -2 if too small.
-    pub extern "__zx_kv" fn kv_list(
-        ns_ptr: [*]const u8,
-        ns_len: usize,
-        prefix_ptr: [*]const u8,
-        prefix_len: usize,
-        buf_ptr: [*]u8,
-        buf_max: usize,
-    ) i32;
-};
+const kv = @import("../../core/kv.zig");
+const ext = @import("extern.zig");
 
 fn get(_: *anyopaque, ns: []const u8, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
     var buf: [8192]u8 = undefined;

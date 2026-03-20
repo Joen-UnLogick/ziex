@@ -73,7 +73,7 @@ fn clientEvent(ctx: zx.EventContext) void {
 }
 
 // This runs on the server
-fn serverEvent(ctx: zx.ServerEventContext) void {
+fn serverEvent(ctx: zx.server.Event) void {
     const val = ctx.value() orelse "";
     std.log.info("onclick: {s}\n", .{val});
 }
@@ -85,19 +85,19 @@ fn clientIncrement(ctx: *zx.EventContext) void {
     std.log.info("increment: {d}\n", .{val.get()});
 }
 
-fn serverIncrement(_: zx.ServerEventContext, sc: *zx.StateContext) void {
+fn serverIncrement(_: zx.server.Event, sc: *zx.StateContext) void {
     const val = sc.state(i32);
     val.set(val.get() + 1);
     std.log.info("increment: {d}\n", .{val.get()});
 }
 
-fn serverAgeIncrement(_: zx.ServerEventContext, sc: *zx.StateContext) void {
+fn serverAgeIncrement(_: zx.server.Event, sc: *zx.StateContext) void {
     _ = sc.state(i32);
     const val = sc.state(i32);
     val.set(val.get() + 1);
 }
 
-fn serverSIncrementHandler(_: zx.ServerEventContext, sc: *zx.StateContext) void {
+fn serverSIncrementHandler(_: zx.server.Event, sc: *zx.StateContext) void {
     const val = sc.state(i32);
     val.set(val.get() + 1);
     std.log.info("increment: {d}\n", .{val.get()});

@@ -20,7 +20,7 @@ pub fn POST(ctx: zx.RouteContext) !void {
 }
 
 // Support multiple methods signature
-// pub fn POST(req: zx.Request, res: zx.Response) !void {
+// pub fn POST(req: zx.server.Request, res: zx.server.Response) !void {
 //     const body = req.text() orelse "No body";
 //     res.cookies.set("body", body, .{});
 //     res.cookies.set("body-1", body, .{});
@@ -31,7 +31,7 @@ pub fn POST(ctx: zx.RouteContext) !void {
 // }
 
 // // Shortan cookie setter
-// pub fn POST(res: zx.Response) !void {
+// pub fn POST(res: zx.server.Response) !void {
 //     res.cookie("id", "0");
 //     try res.json(.{
 //         .message = "PST",

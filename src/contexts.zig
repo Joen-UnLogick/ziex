@@ -236,7 +236,7 @@ pub fn StateHandle(comptime T: type) type {
 
 /// Server-side accessor for component states round-tripped through a server event.
 /// Passed as the second argument to handlers with signature:
-///   fn(ctx: zx.ServerEventContext, sc: *zx.StateContext) void
+///   fn(ctx: zx.server.Event, sc: *zx.StateContext) void
 ///
 /// Call `sc.state(T)` in the same order as `ctx.state(T)` in the render function
 /// to access each bound state — no index needed.
@@ -324,7 +324,7 @@ pub fn ComponentCtx(comptime PropsType: type) type {
         /// Use this only when you want a smaller payload by sending a subset.
         ///
         /// `handler` must have the signature:
-        ///   fn(ctx: zx.ServerEventContext, sc: *zx.StateContext) void
+        ///   fn(ctx: zx.server.Event, sc: *zx.StateContext) void
         ///
         /// `states` is a tuple of `*State(T)` values (from `ctx.state()`).
         /// Access them via `sc.state(T)` in the same order as listed in the tuple.
@@ -338,10 +338,10 @@ pub fn ComponentCtx(comptime PropsType: type) type {
 
             comptime {
                 if (params.len != 2 or
-                    params[0].type.? != zx.ServerEventContext or
+                    params[0].type.? != zx.server.Event or
                     params[1].type.? != *zx.StateContext)
                 {
-                    @compileError("sbind: handler must be fn(zx.ServerEventContext, *zx.StateContext) void");
+                    @compileError("sbind: handler must be fn(zx.server.Event, *zx.StateContext) void");
                 }
             }
 
@@ -350,7 +350,7 @@ pub fn ComponentCtx(comptime PropsType: type) type {
 
             // Server-side wrapper: builds a StateContext from the parsed payload states,
             const ServerWrapper = struct {
-                fn wrap(ctx: *zx.ServerEventContext) void {
+                fn wrap(ctx: *zx.server.Event) void {
                     const n = ctx.payload.states.len;
                     const outputs = ctx.allocator.alloc([]u8, n) catch return;
                     for (ctx.payload.states, 0..) |s, i| {
@@ -425,7 +425,7 @@ pub fn ComponentCtx(comptime PropsType: type) type {
         ///       automatically serialized and round-tripped. Access them via `sc.state(T)`
         ///       in the same order as `ctx.state(T)` in the render function.
         ///
-        ///   fn(zx.ServerEventContext, *zx.StateContext) void
+        ///   fn(zx.server.Event, *zx.StateContext) void
         ///     → same as above but also receives the event context (value, payload, etc.).
         ///
         /// Use `sbind(handler, .{state1, state2})` to bind only specific states.
@@ -457,13 +457,13 @@ pub fn ComponentCtx(comptime PropsType: type) type {
                     .context = @ptrCast(cid_ptr),
                 };
             } else if (comptime (params.len == 2 and
-                params[0].type.? == zx.ServerEventContext and
+                params[0].type.? == zx.server.Event and
                 params[1].type.? == *zx.StateContext) or
                 (params.len == 1 and params[0].type.? == *zx.StateContext))
             {
                 // Server-side binding (auto-bind all states)
                 const ServerWrapper = struct {
-                    fn wrap(ctx: *zx.ServerEventContext) void {
+                    fn wrap(ctx: *zx.server.Event) void {
                         const n = ctx.payload.states.len;
                         const outputs = ctx.allocator.alloc([]u8, n) catch return;
                         for (ctx.payload.states, 0..) |s, i| {

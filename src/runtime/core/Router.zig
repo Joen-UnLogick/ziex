@@ -43,8 +43,8 @@ pub const ProxyResult = struct {
 pub fn executeProxyChain(
     path: []const u8,
     local_proxy: ?ServerMeta.ProxyHandler,
-    req: zx.Request,
-    res: zx.Response,
+    req: zx.server.Request,
+    res: zx.server.Response,
     arena: std.mem.Allocator,
 ) ProxyResult {
     var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
@@ -136,7 +136,7 @@ pub fn renderStreaming() void {
 /// Flexible handler resolution (custom HTTP methods, event handlers)
 pub fn resolveCustomHandler(
     handlers: ServerMeta.RouteHandlers,
-    method: zx.Request.Method,
+    method: zx.server.Request.Method,
     method_string: ?[]const u8,
 ) ?ServerMeta.RouteHandler {
     return switch (method) {
@@ -267,7 +267,7 @@ fn tryExtractParams(pattern: []const u8, path: []const u8, match: *RouteMatch) b
 }
 
 /// Resolve the API route handler for a given HTTP method.
-pub fn resolveRouteHandler(handlers: ServerMeta.RouteHandlers, method: zx.Request.Method) ?ServerMeta.RouteHandler {
+pub fn resolveRouteHandler(handlers: ServerMeta.RouteHandlers, method: zx.server.Request.Method) ?ServerMeta.RouteHandler {
     return switch (method) {
         .GET => handlers.get orelse handlers.handler,
         .POST => handlers.post orelse handlers.handler,
@@ -284,8 +284,8 @@ pub fn resolveRouteHandler(handlers: ServerMeta.RouteHandlers, method: zx.Reques
 /// Does NOT execute local page_proxy/route_proxy — those are handled by the caller.
 pub fn executeCascadingProxies(
     path: []const u8,
-    req: zx.Request,
-    res: zx.Response,
+    req: zx.server.Request,
+    res: zx.server.Response,
     arena: std.mem.Allocator,
 ) ProxyResult {
     var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
@@ -358,8 +358,8 @@ pub fn executeCascadingProxies(
 pub fn executeLocalProxy(
     proxy_fn: ServerMeta.ProxyHandler,
     parent_result: ProxyResult,
-    req: zx.Request,
-    res: zx.Response,
+    req: zx.server.Request,
+    res: zx.server.Response,
     arena: std.mem.Allocator,
 ) ProxyResult {
     var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
@@ -533,8 +533,8 @@ pub fn applyLayoutsForPath(
 /// Returns the rendered error component, or null if no error handler found.
 pub fn renderErrorComponent(
     arena: std.mem.Allocator,
-    req: zx.Request,
-    res: zx.Response,
+    req: zx.server.Request,
+    res: zx.server.Response,
     path: []const u8,
     err: anyerror,
 ) ?Component {
@@ -558,8 +558,8 @@ pub fn renderErrorComponent(
 /// Returns the rendered notfound component, or null if no handler found.
 pub fn renderNotFoundComponent(
     arena: std.mem.Allocator,
-    req: zx.Request,
-    res: zx.Response,
+    req: zx.server.Request,
+    res: zx.server.Response,
     path: []const u8,
     matched_route: ?*const Route,
 ) ?Component {

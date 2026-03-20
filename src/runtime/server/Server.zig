@@ -368,7 +368,7 @@ pub const ServerMeta = struct {
             value: []const u8,
         };
         url: []const u8,
-        method: zx.Request.Method,
+        method: zx.server.Request.Method,
         headers: []const Header,
         body: []const u8,
     };

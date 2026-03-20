@@ -1,5 +1,8 @@
 const std = @import("std");
-const Request = @import("zx").Request;
+const zx = @import("zx");
+
+const Request = zx.server.Request;
+const Response = zx.server.Response;
 
 // --- Type Re-exports --- //
 test "Request.Method: is std.http.Method" {
@@ -41,7 +44,7 @@ test "Request: text returns null without backend" {
 test "Request: params.get returns null without backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
- 
+
     const req = (Request.Builder{ .arena = fba.allocator() }).build();
     try std.testing.expect(req.params.get("id") == null);
 }
@@ -49,14 +52,14 @@ test "Request: params.get returns null without backend" {
 test "Request: cookies field returns Cookies accessor" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
- 
+
     const req = (Request.Builder{
         .arena = fba.allocator(),
         .cookie_header = "session=abc123; count=42",
     }).build();
- 
+
     try std.testing.expectEqualStrings("abc123", req.cookies.get("session").?);
-    try std.testing.expectEqual(@as(i32, 42), req.cookies.@"as"("count", i32).?);
+    try std.testing.expectEqual(@as(i32, 42), req.cookies.as("count", i32).?);
 }
 
 // --- Headers --- //
@@ -120,8 +123,6 @@ test "Request.Builder: builds with custom values" {
     try std.testing.expectEqual(Request.Version.@"HTTP/1.0", req.protocol);
     try std.testing.expectEqualStrings("xyz", req.cookies.get("session").?);
 }
-
-const Response = @import("zx").Response;
 
 // --- Type Re-exports --- //
 

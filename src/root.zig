@@ -15,8 +15,6 @@ const opts = @import("options.zig");
 const ctxs = @import("contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
 
-pub const cache = @import("runtime/core//Cache.zig");
-
 // -- Core Language --//
 pub const Ast = @import("core/Ast.zig");
 pub const Parse = @import("core/Parse.zig");
@@ -41,20 +39,17 @@ pub const info = @import("zx_info");
 pub const Allocator = std.mem.Allocator;
 pub const App = app_module.Server(void);
 pub const Server = app_module.Server;
-pub const server = app_module;
-pub const Edge = @import("runtime/edge/Edge.zig");
+pub const Edge = @import("runtime/server/wasm/entrypoint.zig");
 pub const Client = @import("runtime/client/Client.zig");
 
+// --- Namespaces --- //
+pub const client = @import("runtime/client.zig");
+pub const server = @import("runtime/server.zig");
 pub const util = @import("util.zig");
-
-pub const client = @import("runtime/client/window.zig");
+pub const cache = @import("runtime/core//Cache.zig");
 
 // --- Reactivity --- //
-// pub const Computed = reactivity.Computed;
-// pub const Effect = reactivity.Effect;
-// pub const CleanupFn = reactivity.CleanupFn;
 pub const EventHandler = reactivity.EventHandler;
-// pub const signal = reactivity.signal;
 pub const State = reactivity.State;
 // pub const effect = reactivity.effect;
 // pub const effectDeferred = reactivity.effectDeferred;
@@ -69,6 +64,7 @@ pub const NotFoundOptions = opts.NotFoundOptions;
 pub const ErrorOptions = opts.ErrorOptions;
 pub const RouteOptions = opts.RouteOptions;
 pub const ProxyOptions = opts.ProxyOptions;
+pub const SocketOptions = routing.SocketOptions;
 
 /// --- Contexts --- //
 pub const ProxyContext = ctxs.ProxyContext;
@@ -89,19 +85,15 @@ pub const SocketOpenCtx = routing.SocketOpenCtx;
 pub const SocketCloseContext = routing.SocketCloseContext;
 pub const SocketCloseCtx = routing.SocketCloseCtx;
 pub const SocketMessageType = routing.SocketMessageType;
-pub const Socket = routing.Socket;
-pub const SocketOptions = routing.SocketOptions;
 pub const ComponentCtx = ctxs.ComponentCtx;
 pub const ComponentContext = ComponentCtx(void);
 pub const EventContext = ctxs.EventContext;
-pub const ServerEventContext = ctxs.ServerEventContext;
 pub const StateContext = ctxs.StateContext;
 pub const StateHandle = ctxs.StateHandle;
 pub const ActionContext = ctxs.ActionContext;
 
 pub const BuiltinAttribute = @import("attributes.zig").builtin;
 pub const Platform = plfm.Platform;
-pub const vdom = @import("runtime/core/vdom.zig");
 
 // --- Routing --- //
 pub const Router = @import("runtime/core/Router.zig");
@@ -112,12 +104,11 @@ pub const db = @panic("TODO: Database not implemented yet");
 
 // --- Net --- //
 pub const Headers = @import("runtime/core/Headers.zig");
-pub const Request = @import("runtime/core/Request.zig");
-pub const Response = @import("runtime/core/Response.zig");
 pub const Fetch = @import("runtime/core/Fetch.zig");
 pub const WebSocket = @import("runtime/core/WebSocket.zig");
 pub const File = @import("runtime/core/File.zig");
 pub const Io = Fetch.Io;
+pub const Socket = routing.Socket;
 pub const fetch = Fetch.fetch;
 
 // --- Values --- //

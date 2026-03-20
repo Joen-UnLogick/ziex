@@ -1,7 +1,9 @@
 const std = @import("std");
-const zx = @import("../../root.zig");
+const zx = @import("../../../root.zig");
 const kv = @import("kv.zig");
-const render = @import("../server/render.zig");
+const render = @import("../../server/render.zig");
+const server_dispatch = @import("../../server/dispatch.zig");
+const ext = @import("extern.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;
@@ -15,7 +17,7 @@ pub fn run() !void {
 
     var pathname: []const u8 = "/";
     var search: []const u8 = "";
-    var method: zx.Request.Method = .GET;
+    var method: zx.server.Request.Method = .GET;
     var header_entries = std.ArrayList(HeaderEntry).empty;
     defer header_entries.deinit(allocator);
 
@@ -27,7 +29,7 @@ pub fn run() !void {
             search = args.next() orelse return error.MissingSearch;
         } else if (std.mem.eql(u8, arg, "--method")) {
             const method_str = args.next() orelse return error.MissingMethod;
-            method = std.meta.stringToEnum(zx.Request.Method, method_str) orelse return error.InvalidMethod;
+            method = std.meta.stringToEnum(zx.server.Request.Method, method_str) orelse return error.InvalidMethod;
         } else if (std.mem.eql(u8, arg, "--header")) {
             const header_str = args.next() orelse return error.MissingHeader;
             if (std.mem.indexOfScalar(u8, header_str, ':')) |sep| {
@@ -78,7 +80,7 @@ pub fn run() !void {
         .allocator = allocator,
     };
 
-    const request = zx.Request{
+    const request = zx.server.Request{
         .url = "",
         .method = method,
         .pathname = pathname,
@@ -94,6 +96,10 @@ pub fn run() !void {
         .arena = allocator,
         .backend_ctx = @ptrCast(&wasi_req),
         .vtable = &WasiRequest.vtable,
+        .params = .{
+            .backend_ctx = @ptrCast(&wasi_req),
+            .vtable = &WasiRequest.params_vtable,
+        },
         .cookies = .{ .header_value = cookie_header },
         .formdata_backend_ctx = @ptrCast(&wasi_form_data),
         .formdata_vtable = &WasiFormData.vtable,
@@ -101,7 +107,7 @@ pub fn run() !void {
         .multiformdata_vtable = &WasiMultiFormData.vtable,
     };
 
-    const response = zx.Response{
+    const response = zx.server.Response{
         .arena = allocator,
         .backend_ctx = @ptrCast(&wasi_res),
         .vtable = &WasiResponse.vtable,
@@ -126,7 +132,6 @@ pub fn run() !void {
         return;
     }
 
-    const server_dispatch = @import("../server/dispatch.zig");
     if (matched_route) |route| {
         var pagectx = zx.PageContext{
             .request = request,
@@ -229,7 +234,7 @@ pub fn run() !void {
                     defer allocator.free(recv_buf);
 
                     while (true) {
-                        const n = ws_recv(recv_buf.ptr, recv_buf.len);
+                        const n = ext.ws_recv(recv_buf.ptr, recv_buf.len);
                         if (n < 0) break; // connection closed
                         if (handlers.socket) |socket_fn| {
                             socket_fn(socket, recv_buf[0..@intCast(n)], .text, upgrade_data, allocator, allocator) catch {};
@@ -376,7 +381,7 @@ const HeaderEntry = struct { name: []const u8, value: []const u8 };
 const WasiHeaders = struct {
     entries: []const HeaderEntry,
 
-    const vtable = zx.Request.Headers.HeadersVTable{
+    const vtable = zx.server.Request.Headers.HeadersVTable{
         .get = &get,
         .has = &has,
     };
@@ -398,7 +403,7 @@ const WasiHeaders = struct {
 const WasiSearchParams = struct {
     search: []const u8,
 
-    const vtable = zx.Request.URLSearchParams.URLSearchParamsVTable{
+    const vtable = zx.server.Request.URLSearchParams.URLSearchParamsVTable{
         .get = &get,
         .has = &has,
     };
@@ -428,8 +433,11 @@ const WasiRequest = struct {
     body: []const u8,
     route_match: ?Router.RouteMatch = null,
 
-    const vtable = zx.Request.VTable{
+    const vtable = zx.server.Request.VTable{
         .text = &text,
+    };
+
+    const params_vtable = zx.server.Request.Params.ParamsVTable{
         .getParam = &getParam,
     };
 
@@ -457,7 +465,7 @@ const WasiFormData = struct {
     count: usize = 0,
     parsed: bool = false,
 
-    const vtable = zx.Request.FormDataVTable{
+    const vtable = zx.server.Request.FormDataVTable{
         .get = &get,
         .has = &has,
         .entries = &entries,
@@ -503,7 +511,7 @@ const WasiFormData = struct {
         return get(ctx, name) != null;
     }
 
-    fn entries(ctx: *anyopaque) ?zx.Request.FormData.Iterator {
+    fn entries(ctx: *anyopaque) ?zx.server.Request.FormData.Iterator {
         const self: *WasiFormData = @ptrCast(@alignCast(ctx));
         self.parse();
         return .{
@@ -520,11 +528,11 @@ const WasiMultiFormData = struct {
     allocator: std.mem.Allocator,
 
     keys: [32][]const u8 = undefined,
-    values: [32]zx.Request.MultiFormData.Value = undefined,
+    values: [32]zx.server.Request.MultiFormData.Value = undefined,
     count: usize = 0,
     parsed: bool = false,
 
-    const vtable = zx.Request.MultiFormDataVTable{
+    const vtable = zx.server.Request.MultiFormDataVTable{
         .get = &get,
         .has = &has,
         .entries = &entries,
@@ -638,7 +646,7 @@ const WasiMultiFormData = struct {
         }
     }
 
-    fn get(ctx: *anyopaque, name: []const u8) ?zx.Request.MultiFormData.Value {
+    fn get(ctx: *anyopaque, name: []const u8) ?zx.server.Request.MultiFormData.Value {
         const self: *WasiMultiFormData = @ptrCast(@alignCast(ctx));
         self.parse();
         for (self.keys[0..self.count], 0..) |key, i| {
@@ -651,7 +659,7 @@ const WasiMultiFormData = struct {
         return get(ctx, name) != null;
     }
 
-    fn getAll(ctx: *anyopaque, name: []const u8, allocator: std.mem.Allocator) ?[]const zx.Request.MultiFormData.Value {
+    fn getAll(ctx: *anyopaque, name: []const u8, allocator: std.mem.Allocator) ?[]const zx.server.Request.MultiFormData.Value {
         const self: *WasiMultiFormData = @ptrCast(@alignCast(ctx));
         self.parse();
         var count: usize = 0;
@@ -659,7 +667,7 @@ const WasiMultiFormData = struct {
             if (std.mem.eql(u8, key, name)) count += 1;
         }
         if (count == 0) return null;
-        const result = allocator.alloc(zx.Request.MultiFormData.Value, count) catch return null;
+        const result = allocator.alloc(zx.server.Request.MultiFormData.Value, count) catch return null;
         var idx: usize = 0;
         for (self.keys[0..self.count], 0..) |key, i| {
             if (std.mem.eql(u8, key, name)) {
@@ -670,7 +678,7 @@ const WasiMultiFormData = struct {
         return result;
     }
 
-    fn entries(ctx: *anyopaque) ?zx.Request.MultiFormData.Iterator {
+    fn entries(ctx: *anyopaque) ?zx.server.Request.MultiFormData.Iterator {
         const self: *WasiMultiFormData = @ptrCast(@alignCast(ctx));
         self.parse();
         return .{
@@ -718,7 +726,7 @@ const WasiResponse = struct {
     header_entries: std.ArrayList(HeaderEntry),
     allocator: std.mem.Allocator,
 
-    const vtable = zx.Response.VTable{
+    const vtable = zx.server.Response.VTable{
         .setStatus = &setStatus,
         .setBody = &setBody,
         .setHeader = &setHeader,
@@ -794,7 +802,7 @@ const WasiResponse = struct {
         self.body = .init(self.allocator);
     }
 
-    fn setCookie(ctx: *anyopaque, name: []const u8, value: []const u8, opts: zx.Response.CookieOptions) anyerror!void {
+    fn setCookie(ctx: *anyopaque, name: []const u8, value: []const u8, opts: zx.server.Response.CookieOptions) anyerror!void {
         const self: *WasiResponse = @ptrCast(@alignCast(ctx));
 
         var buf = std.Io.Writer.Allocating.init(self.allocator);
@@ -818,14 +826,6 @@ const WasiResponse = struct {
     }
 };
 
-// ---------------------------------------------------------------------------
-// Logging bridge — forwards std.log calls to the JS console with level info
-// ---------------------------------------------------------------------------
-
-/// Provided by the JS runtime via the __zx namespace (ZxBridge).
-/// level: 0=error, 1=warn, 2=info, 3=debug
-extern "__zx" fn _log(level: u8, ptr: [*]const u8, len: usize) void;
-
 /// std.log-compatible logFn for the edge (WASI) target.
 /// Plug into std_options to route all std.log.* calls through the JS console
 /// instead of writing formatted text to stderr.
@@ -844,27 +844,8 @@ pub fn logFn(
     const prefix = if (scope == .default) "" else "(" ++ @tagName(scope) ++ ") ";
     const msg = std.fmt.allocPrint(std.heap.wasm_allocator, prefix ++ format, args) catch return;
     defer std.heap.wasm_allocator.free(msg);
-    _log(level, msg.ptr, msg.len);
+    ext._log(level, msg.ptr, msg.len);
 }
-
-// ---------------------------------------------------------------------------
-// WebSocket WASI bridge — Cloudflare Worker binding
-// ---------------------------------------------------------------------------
-
-/// Extern imports provided by worker.ts via the __zx_ws import namespace.
-/// ws_recv is wrapped with WebAssembly.Suspending on the JS side so that
-/// WASM suspends until a message arrives (JSPI).
-extern "__zx_ws" fn ws_upgrade() void;
-extern "__zx_ws" fn ws_write(ptr: [*]const u8, len: usize) void;
-extern "__zx_ws" fn ws_close(code: u16, reason_ptr: [*]const u8, reason_len: usize) void;
-/// Returns number of bytes written to buf_ptr, or -1 when the connection closes.
-extern "__zx_ws" fn ws_recv(buf_ptr: [*]u8, buf_max: usize) i32;
-extern "__zx_ws" fn ws_subscribe(topic_ptr: [*]const u8, topic_len: usize) void;
-extern "__zx_ws" fn ws_unsubscribe(topic_ptr: [*]const u8, topic_len: usize) void;
-/// Returns number of recipients the message was sent to.
-extern "__zx_ws" fn ws_publish(topic_ptr: [*]const u8, topic_len: usize, data_ptr: [*]const u8, data_len: usize) usize;
-/// Returns 1 if subscribed, 0 otherwise.
-extern "__zx_ws" fn ws_is_subscribed(topic_ptr: [*]const u8, topic_len: usize) i32;
 
 /// WASI Socket backend for the Cloudflare Worker edge environment.
 const WasiSocket = struct {
@@ -895,7 +876,7 @@ const WasiSocket = struct {
     fn upgradeFn(ctx: *anyopaque) anyerror!void {
         const self: *WasiSocket = @ptrCast(@alignCast(ctx));
         self.upgraded = true;
-        ws_upgrade();
+        ext.ws_upgrade();
     }
 
     fn upgradeWithDataFn(ctx: *anyopaque, data: []const u8) anyerror!void {
@@ -904,12 +885,12 @@ const WasiSocket = struct {
         const len = @min(data.len, self.upgrade_data_buf.len);
         @memcpy(self.upgrade_data_buf[0..len], data[0..len]);
         self.upgrade_data_len = len;
-        ws_upgrade();
+        ext.ws_upgrade();
     }
 
     fn writeFn(ctx: *anyopaque, data: []const u8) anyerror!void {
         _ = ctx;
-        ws_write(data.ptr, data.len);
+        ext.ws_write(data.ptr, data.len);
     }
 
     fn readFn(ctx: *anyopaque) ?[]const u8 {
@@ -920,12 +901,27 @@ const WasiSocket = struct {
     fn closeFn(ctx: *anyopaque) void {
         _ = ctx;
         const reason: []const u8 = "";
-        ws_close(1000, reason.ptr, reason.len);
+        ext.ws_close(1000, reason.ptr, reason.len);
     }
 
-    fn subscribeFn(ctx: *anyopaque, topic: []const u8) void { _ = ctx; ws_subscribe(topic.ptr, topic.len); }
-    fn unsubscribeFn(ctx: *anyopaque, topic: []const u8) void { _ = ctx; ws_unsubscribe(topic.ptr, topic.len); }
-    fn publishFn(ctx: *anyopaque, topic: []const u8, message: []const u8) usize { _ = ctx; return ws_publish(topic.ptr, topic.len, message.ptr, message.len); }
-    fn isSubscribedFn(ctx: *anyopaque, topic: []const u8) bool { _ = ctx; return ws_is_subscribed(topic.ptr, topic.len) != 0; }
-    fn setPublishToSelfFn(ctx: *anyopaque, value: bool) void { _ = ctx; _ = value; }
+    fn subscribeFn(ctx: *anyopaque, topic: []const u8) void {
+        _ = ctx;
+        ext.ws_subscribe(topic.ptr, topic.len);
+    }
+    fn unsubscribeFn(ctx: *anyopaque, topic: []const u8) void {
+        _ = ctx;
+        ext.ws_unsubscribe(topic.ptr, topic.len);
+    }
+    fn publishFn(ctx: *anyopaque, topic: []const u8, message: []const u8) usize {
+        _ = ctx;
+        return ext.ws_publish(topic.ptr, topic.len, message.ptr, message.len);
+    }
+    fn isSubscribedFn(ctx: *anyopaque, topic: []const u8) bool {
+        _ = ctx;
+        return ext.ws_is_subscribed(topic.ptr, topic.len) != 0;
+    }
+    fn setPublishToSelfFn(ctx: *anyopaque, value: bool) void {
+        _ = ctx;
+        _ = value;
+    }
 };

@@ -1,7 +1,8 @@
 const std = @import("std");
 const zx = @import("zx");
-const Request = zx.Request;
-const Response = zx.Response;
+
+const Request = zx.server.Request;
+const Response = zx.server.Response;
 const PageContext = zx.PageContext;
 const LayoutContext = zx.LayoutContext;
 const NotFoundContext = zx.NotFoundContext;

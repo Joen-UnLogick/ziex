@@ -1,5 +1,5 @@
-var progress: u32 = 0;
-var running: bool = false;
+var progress: *zx.State(u32) = undefined;
+var running: *zx.State(bool) = undefined;
 var interval_id: ?u64 = null;
 
 pub fn Page(ctx: zx.PageContext) !zx.Component {
@@ -10,9 +10,12 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     );
 }
 
-pub fn ProgressDemo(allocator: zx.Allocator) zx.Component {
+pub fn ProgressDemo(ctx: *zx.ComponentContext) zx.Component {
+    progress = ctx.state(u32, 0);
+    running = ctx.state(bool, false);
+
     return (
-        <div @{allocator} class="timer-demo">
+        <div @allocator={ctx.allocator} class="timer-demo">
             <h3 class="timer-title">Progress Demo</h3>
             <p class="timer-subtitle">Fetch progress from server via WASM</p>
 
@@ -31,7 +34,9 @@ pub fn ProgressDemo(allocator: zx.Allocator) zx.Component {
                 <button class="timer-btn" onclick={reset}>Reset</button>
             </div>
 
-            <p class="timer-hint">{if (progress >= 100) ("Complete!") else if (running) ("Loading...") else ("Random +5-25% per request")}</p>
+            <p class="timer-hint">
+                {if (progress.get() >= 100) ("Complete!") else if (running.get()) ("Loading...") else ("Random +5-25% per request")}
+            </p>
 
             <style @escaping={.none}>{css}</style>
         </div>
@@ -40,18 +45,16 @@ pub fn ProgressDemo(allocator: zx.Allocator) zx.Component {
 
 fn start(_: zx.EventContext) void {
     if (interval_id != null) return;
-    progress = 0;
+    progress.set(0);
     fetch();
     interval_id = zx.client.setInterval(&fetch, 1200);
-    zx.rerender();
 }
 
 fn stop(_: zx.EventContext) void {
     if (interval_id) |id| {
         zx.client.clearInterval(id);
         interval_id = null;
-        running = false;
-        zx.rerender();
+        running.set(false);
     }
 }
 
@@ -60,30 +63,27 @@ fn reset(_: zx.EventContext) void {
         zx.client.clearInterval(id);
         interval_id = null;
     }
-    progress = 0;
-    running = false;
-    zx.rerender();
+    progress.set(0);
+    running.set(false);
 }
 
 fn fetch() void {
-    running = true;
-    zx.rerender();
+    running.set(true);
     _ = zx.fetch(.wasm(&onFetch), zx.client_allocator, "/examples/wasm/progress", .{ .method = .POST }) catch {};
 }
 
 fn onFetch(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
-    running = false;
+    running.set(false);
     if (res) |r| {
         defer r.deinit();
         if (r.json(struct { progress: u32, completed: bool })) |p| {
-            progress = p.value.progress;
+            progress.set(p.value.progress);
             if (p.value.completed) {
                 if (interval_id) |id| zx.client.clearInterval(id);
                 interval_id = null;
             }
         } else |_| {}
     }
-    zx.rerender();
 }
 
 const css =
