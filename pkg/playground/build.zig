@@ -56,17 +56,10 @@ pub fn build(b: *std.Build) void {
     _ = playground_assets.addCopyFile(zig_tar_gz, "zig.tar.gz");
     _ = playground_assets.addCopyFile(zx_tar_gz, "zx.tar.gz");
 
-    // Install artifacts locally (for standalone builds)
-    // b.getInstallStep().dependOn(&b.addInstallArtifact(zls_exe, .{}).step);
-    // b.getInstallStep().dependOn(&b.addInstallArtifact(zig_exe, .{}).step);
-    // b.getInstallStep().dependOn(&b.addInstallArtifact(zx_exe, .{}).step);
-    // b.getInstallStep().dependOn(&b.addInstallFile(zig_tar_gz, "zig.tar.gz").step);
-    // b.getInstallStep().dependOn(&b.addInstallFile(zx_tar_gz, "zx.tar.gz").step);
-
-    // Install in the site/assets/playground directory for the web playground to consume
+    // Install artifacts (when run standalone)
     b.getInstallStep().dependOn(&b.addInstallDirectory(.{
         .source_dir = playground_assets.getDirectory(),
-        .install_dir = .{ .custom = "../../../site/app/assets/playground" },
-        .install_subdir = "",
+        .install_dir = .prefix,
+        .install_subdir = "static/assets/playground",
     }).step);
 }

@@ -35,6 +35,10 @@ COPY site/build.zig site/build.zig.zon ./site/
 RUN cd site && zig build --fetch
 RUN cd site && zig build zx -- version
 
+# Ziex Site - Playground Assets
+RUN cd site && zig build pg
+
+# Ziex Site - App
 COPY site/app ./site/app
 RUN cd site && zig build -Doptimize=ReleaseSmall -Dtarget=$(uname -m)-linux-musl
 RUN cd site && zig build zx -- bundle

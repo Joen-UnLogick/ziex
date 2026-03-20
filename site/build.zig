@@ -7,6 +7,19 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // --- Deps --- //
+    const playground_dep = b.dependency("playground", .{});
+    const pg_assets = playground_dep.namedWriteFiles("playground_assets");
+    const install_pg = b.addInstallDirectory(.{
+        .source_dir = pg_assets.getDirectory(),
+        .install_dir = .prefix,
+        .install_subdir = "static/assets/playground",
+    });
+
+    // -- Steps: pg - installs playground assets -- //
+    const pg_step = b.step("pg", "Install playground assets");
+    pg_step.dependOn(&install_pg.step);
+
     // --- ZX App Executable ---
     const app_exe = b.addExecutable(.{
         .name = "ziex_dev",
@@ -16,6 +29,7 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
         }),
     });
+    app_exe.step.dependOn(&install_pg.step);
 
     // --- ZX setup: wires dependencies and adds `zx`/`dev` build steps ---
     var zx_build = try zx.init(b, app_exe, .{
