@@ -3,16 +3,16 @@ pub fn PUT(ctx: zx.RouteContext) !void {
 }
 
 pub fn DELETE(ctx: zx.RouteContext) !void {
-    ctx.response.deleteCookie("body", .{});
-    ctx.response.deleteCookie("body-1", .{});
+    ctx.response.cookies.delete("body", .{});
+    ctx.response.cookies.delete("body-1", .{});
     try ctx.response.json(.{ .message = "Deleted" }, .{});
 }
 
 // Too much column width of codes
 pub fn POST(ctx: zx.RouteContext) !void {
     const body = ctx.request.text() orelse "No body";
-    ctx.response.setCookie("body", body, .{});
-    ctx.response.setCookie("body-1", body, .{});
+    ctx.response.cookies.set("body", body, .{});
+    ctx.response.cookies.set("body-1", body, .{});
     try ctx.response.json(.{
         .message = "PST",
         .body = body,
@@ -22,8 +22,8 @@ pub fn POST(ctx: zx.RouteContext) !void {
 // Support multiple methods signature
 // pub fn POST(req: zx.Request, res: zx.Response) !void {
 //     const body = req.text() orelse "No body";
-//     res.setCookie("body", body, .{});
-//     res.setCookie("body-1", body, .{});
+//     res.cookies.set("body", body, .{});
+//     res.cookies.set("body-1", body, .{});
 //     try res.json(.{
 //         .message = "PST",
 //         .body = body,

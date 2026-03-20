@@ -44,13 +44,13 @@ fn handleAction(ctx: zx.PageCtx(void, AuthState)) void {
     if (std.mem.eql(u8, action, "Login")) {
         const username = fd.get("username") orelse return;
         if (username.len > 0) {
-            ctx.response.setCookie("session", username, .{
+            ctx.response.cookies.set("session", username, .{
                 .path = "/",
                 .max_age = 3600, // 1 hour
             });
         }
     } else if (std.mem.eql(u8, action, "Logout")) {
-        ctx.response.deleteCookie("session", .{ .path = "/" });
+        ctx.response.cookies.delete("session", .{ .path = "/" });
     }
 
     // Redirect back to GET to avoid form resubmission

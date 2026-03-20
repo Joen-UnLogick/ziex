@@ -1,6 +1,6 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
-    const slug = ctx.request.getParam("slug") orelse "unknown";
+    const slug = ctx.request.params.get("slug") orelse "unknown";
 
     return (
         <div @allocator={allocator}>

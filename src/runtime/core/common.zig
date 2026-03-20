@@ -87,7 +87,7 @@ pub const Cookies = struct {
         return null;
     }
 
-    pub fn getAs(self: Cookies, name: []const u8, comptime T: type) ?T {
+    pub fn as(self: Cookies, name: []const u8, comptime T: type) ?T {
         var it = std.mem.splitScalar(u8, self.header_value, ';');
         while (it.next()) |kv| {
             const trimmed = std.mem.trimLeft(u8, kv, " ");
@@ -98,16 +98,13 @@ pub const Cookies = struct {
 
             return switch (@typeInfo(T)) {
                 .pointer => |p| switch (p.size) {
-                    .Slice => if (p.child == u8 and p.is_const) str
-                              else @compileError("Cookies.getAs: only []const u8 is supported, got " ++ @typeName(T)),
+                    .Slice => if (p.child == u8 and p.is_const) str else @compileError("Cookies.getAs: only []const u8 is supported, got " ++ @typeName(T)),
                     else => @compileError("Cookies.getAs: only []const u8 is supported, got " ++ @typeName(T)),
                 },
-                .int   => std.fmt.parseInt(T, str, 10) catch return null,
+                .int => std.fmt.parseInt(T, str, 10) catch return null,
                 .float => std.fmt.parseFloat(T, str) catch return null,
-                .bool  => if (std.mem.eql(u8, str, "true")  or std.mem.eql(u8, str, "1")) true
-                     else if (std.mem.eql(u8, str, "false") or std.mem.eql(u8, str, "0")) false
-                     else return null,
-                .@"enum"  => std.meta.stringToEnum(T, str) orelse return null,
+                .bool => if (std.mem.eql(u8, str, "true") or std.mem.eql(u8, str, "1")) true else if (std.mem.eql(u8, str, "false") or std.mem.eql(u8, str, "0")) false else return null,
+                .@"enum" => std.meta.stringToEnum(T, str) orelse return null,
                 .@"struct", .@"union" => @compileError("Cookies.getAs: use getJson for struct/union types"),
                 else => @compileError("Cookies.getAs: unsupported type " ++ @typeName(T)),
             };

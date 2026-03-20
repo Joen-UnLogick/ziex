@@ -590,7 +590,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
                 <li><code>app/pages/user/[id]/page.zx</code> → <code>/user/:id</code></li>
                 <li><code>app/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
             </ul>
-            <p>Access the parameter value using <code>ctx.request.getParam("name")</code>:</p>
+            <p>Access the parameter value using <code>ctx.request.params.get("name")</code>:</p>
             <ExampleBlock id="dynamic-route" zx_code={props.zx_dynamic} zig_code={props.zig_dynamic} html_code={props.html_dynamic} filename="user/[id]/user_profile.zx" />
 
             <h3>Creating layouts</h3>

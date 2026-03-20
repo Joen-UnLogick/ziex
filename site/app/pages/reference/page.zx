@@ -486,7 +486,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                     <li><code>site/pages/[category]/[item]/page.zx</code> → <code>/:category/:item</code></li>
                 </ul>
                 <h3>Accessing Route and Query Parameters</h3>
-                <p>Use <code>ctx.request.getParam("name")</code> to access dynamic route parameters and <code>ctx.request.query("name")</code> for query strings:</p>
+                <p>Use <code>ctx.request.params.get("name")</code> to access dynamic route parameters and <code>ctx.request.query("name")</code> for query strings:</p>
                 <ExampleBlock id="dynamic-route" zx_code={zx_example_dynamic} zig_code={zig_example_dynamic} html_code={html_example_dynamic} filename="user_profile.zx" />
                 <p>Both methods return <code>?[]const u8</code>, so use <code>orelse</code> to provide a default value.</p>
             </section>

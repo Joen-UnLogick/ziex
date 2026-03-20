@@ -60,6 +60,12 @@ bodyUsed: bool = false,
 /// https://developer.mozilla.org/en-US/docs/Web/API/Response/headers
 headers: Headers = .{},
 
+/// Cookie accessor for setting/deleting cookies.
+///
+/// **Zig Note:** This is an extension field not present in the web standard Response.
+/// Used for MDN-compliant cookie management (response.cookies.set/delete).
+cookies: ResponseCookies = .{},
+
 /// A boolean indicating whether the response was successful (status in the range 200–299) or not.
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/Response/ok
@@ -236,14 +242,10 @@ pub fn redirect(self: *const Response, location: []const u8, redirect_status: ?u
 /// **Parameters:**
 /// - `name`: The cookie name.
 /// - `value`: The cookie value.
-/// - `options`: Optional cookie options (path, domain, max_age, secure, etc.).
+/// - `options`: Optional cookie options (path, domain, max_age, secure, http_only, etc.).
+/// @deprecated Use `cookies.set(name, value, options)` instead.
 pub fn setCookie(self: *const Response, name: []const u8, value: []const u8, options: ?CookieOptions) void {
-    const opts = options orelse CookieOptions{};
-    if (self.vtable) |vt| {
-        if (self.backend_ctx) |ctx| {
-            vt.setCookie(ctx, name, value, opts) catch {};
-        }
-    }
+    self.cookies.set(name, value, options);
 }
 
 /// **Extension to Web Standard:**
@@ -253,10 +255,9 @@ pub fn setCookie(self: *const Response, name: []const u8, value: []const u8, opt
 /// **Parameters:**
 /// - `name`: The cookie name to delete.
 /// - `options`: Optional cookie options (path and domain should match the original cookie).
+/// @deprecated Use `cookies.delete(name, options)` instead.
 pub fn deleteCookie(self: *const Response, name: []const u8, options: ?CookieOptions) void {
-    var opts = options orelse CookieOptions{};
-    opts.max_age = 0; // Setting max-age to 0 deletes the cookie
-    self.setCookie(name, "", opts);
+    self.cookies.delete(name, options);
 }
 
 /// Gets the response writer for streaming content.
@@ -359,6 +360,33 @@ pub const Headers = struct {
     }
 };
 
+// --- Cookies --- //
+
+/// The ResponseCookies interface provides utility methods to work with cookies on the response.
+pub const ResponseCookies = struct {
+    backend_ctx: ?*anyopaque = null,
+    vtable: ?*const VTable = null,
+
+    /// Sets a cookie on the response.
+    ///
+    /// https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
+    pub fn set(self: *const ResponseCookies, name: []const u8, value: []const u8, options: ?CookieOptions) void {
+        const opts = options orelse CookieOptions{};
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                vt.setCookie(ctx, name, value, opts) catch {};
+            }
+        }
+    }
+
+    /// Deletes a cookie by setting it with an expired max-age.
+    pub fn delete(self: *const ResponseCookies, name: []const u8, options: ?CookieOptions) void {
+        var opts = options orelse CookieOptions{};
+        opts.max_age = 0;
+        self.set(name, "", opts);
+    }
+};
+
 // --- Builder (not part of web standard) --- //
 
 /// Builder for creating Response objects.
@@ -395,6 +423,10 @@ pub const Builder = struct {
             .headers = .{
                 .backend_ctx = self.headers_ctx,
                 .vtable = self.headers_vtable,
+            },
+            .cookies = .{
+                .backend_ctx = self.backend_ctx,
+                .vtable = self.vtable,
             },
         };
     }

@@ -33,7 +33,7 @@ fn start(ctx: zx.RouteContext) void {
 }
 
 fn end(ctx: zx.RouteContext) void {
-    ctx.response.setCookie("progress", ctx.fmt("{d}", .{progress}) catch "0", .{});
+    ctx.response.cookies.set("progress", ctx.fmt("{d}", .{progress}) catch "0", .{});
 }
 
 const std = @import("std");

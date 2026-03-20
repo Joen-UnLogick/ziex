@@ -79,7 +79,7 @@ fn frameworkBySlug(slug: []const u8) ?Framework {
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
-    const slug = ctx.request.getParam("framework") orelse "";
+    const slug = ctx.request.params.get("framework") orelse "";
     const maybe_framework = frameworkBySlug(slug);
 
     if (maybe_framework == null) {

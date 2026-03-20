@@ -61,6 +61,8 @@ pub fn createRequest(inner: *httpz.Request) Request {
         .cookie_header = inner.headers.get("cookie") orelse "",
         .search_params_ctx = @ptrCast(inner),
         .search_params_vtable = &search_params_vtable,
+        .params_ctx = @ptrCast(inner),
+        .params_vtable = &params_vtable,
         .formdata_ctx = @ptrCast(inner),
         .formdata_vtable = &formdata_vtable,
         .multiformdata_ctx = @ptrCast(inner),
@@ -70,6 +72,9 @@ pub fn createRequest(inner: *httpz.Request) Request {
 
 const request_vtable = Request.VTable{
     .text = &requestText,
+};
+
+const params_vtable = Request.Params.ParamsVTable{
     .getParam = &requestGetParam,
 };
 

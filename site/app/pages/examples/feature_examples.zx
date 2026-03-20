@@ -223,7 +223,7 @@ pub fn DynamicAttr(
 
 // --- Dynamic Path ---
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    const id = ctx.request.getParam("id");
+    const id = ctx.request.params.get("id");
     return (
         <section @allocator={ctx.arena}>
             <h1>User {id}</h1>

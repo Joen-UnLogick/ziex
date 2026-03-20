@@ -3,12 +3,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const set_username = ctx.request.searchParams.get("username") orelse "";
     var leave_username = ctx.request.searchParams.get("leave") orelse "";
     if (set_username.len > 0) {
-        ctx.response.setCookie("username", set_username, .{});
+        ctx.response.cookies.set("username", set_username, .{});
         chat_username = set_username;
         ctx.response.redirect("/examples/realtime", null);
     }
     if (leave_username.len > 0) {
-        ctx.response.deleteCookie("username", .{});
+        ctx.response.cookies.delete("username", .{});
         leave_username = leave_username;
         chat_username = "";
     }

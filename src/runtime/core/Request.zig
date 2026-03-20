@@ -87,6 +87,12 @@ cookies: Cookies = .{ .header_value = "" },
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
 searchParams: URLSearchParams = .{},
+
+/// URL parameters accessor (from route matching).
+///
+/// **Zig Note:** This is an extension field not present in the web standard Request.
+/// Used for accessing dynamic route parameters (e.g., /users/:id -> params.get("id")).
+params: Params = .{},
 formdata_backend_ctx: ?*anyopaque = null,
 formdata_vtable: ?*const FormDataVTable = null,
 multiformdata_backend_ctx: ?*anyopaque = null,
@@ -125,13 +131,8 @@ vtable: ?*const VTable = null,
 pub const VTable = struct {
     /// Returns the request body as text.
     text: *const fn (ctx: *anyopaque) ?[]const u8 = &defaultText,
-    /// Returns a URL parameter by name (from route matching).
-    getParam: *const fn (ctx: *anyopaque, name: []const u8) ?[]const u8 = &defaultGetParam,
 
     fn defaultText(_: *anyopaque) ?[]const u8 {
-        return null;
-    }
-    fn defaultGetParam(_: *anyopaque, _: []const u8) ?[]const u8 {
         return null;
     }
 };
@@ -163,37 +164,10 @@ pub fn json(self: *const Request, comptime T: type, opts: std.json.ParseOptions)
 /// Returns a URL parameter by name (from route matching).
 ///
 /// **Zig Note:** This is an extension method not present in the web standard Request.
-/// Used for accessing dynamic route parameters (e.g., /users/:id -> getParam("id")).
+/// Used for accessing dynamic route parameters (e.g., /users/:id -> params.get("id")).
+/// @deprecated Use `params.get(name)` instead.
 pub fn getParam(self: *const Request, name: []const u8) ?[]const u8 {
-    if (self.vtable) |vt| {
-        if (self.backend_ctx) |ctx| {
-            return vt.getParam(ctx, name);
-        }
-    }
-    return null;
-}
-
-/// Returns a typed URL parameter by name (from route matching).
-///
-/// **Zig Note:** This is an extension method not present in the web standard Request.
-/// Used for accessing dynamic route parameters (e.g., /users/:id -> getParam("id")).
-pub fn getParamAs(self: *const Request, name: []const u8, comptime T: type) ?T {
-    const str = self.getParam(name) orelse return null;
-
-    return switch (@typeInfo(T)) {
-        .pointer => |p| switch (p.size) {
-            .Slice => if (p.child == u8 and p.is_const) str
-                      else @compileError("getParamAs: only []const u8 is supported, got " ++ @typeName(T)),
-            else => @compileError("getParamAs: only []const u8 is supported, got " ++ @typeName(T)),
-        },
-        .int   => std.fmt.parseInt(T, str, 10) catch return null,
-        .float => std.fmt.parseFloat(T, str) catch return null,
-        .bool  => if (std.mem.eql(u8, str, "true")  or std.mem.eql(u8, str, "1")) true
-             else if (std.mem.eql(u8, str, "false") or std.mem.eql(u8, str, "0")) false
-             else return null,
-        .@"enum"  => std.meta.stringToEnum(T, str) orelse return null,
-        else => @compileError("getParamAs: unsupported type " ++ @typeName(T)),
-    };
+    return self.params.get(name);
 }
 
 /// Returns a FormData object representing the URL-encoded form data of the request body.
@@ -271,6 +245,50 @@ pub const URLSearchParams = struct {
     }
 };
 
+// --- Params --- //
+
+/// The Params interface provides utility methods to work with URL parameters.
+/// extracted from dynamic routes.
+pub const Params = struct {
+    backend_ctx: ?*anyopaque = null,
+    vtable: ?*const ParamsVTable = null,
+
+    pub const ParamsVTable = struct {
+        getParam: *const fn (ctx: *anyopaque, name: []const u8) ?[]const u8 = &defaultGetParam,
+
+        fn defaultGetParam(_: *anyopaque, _: []const u8) ?[]const u8 {
+            return null;
+        }
+    };
+
+    /// Returns the value of a URL parameter by name.
+    pub fn get(self: *const Params, name: []const u8) ?[]const u8 {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                return vt.getParam(ctx, name);
+            }
+        }
+        return null;
+    }
+
+    /// Returns a typed value of a URL parameter by name.
+    pub fn as(self: *const Params, name: []const u8, comptime T: type) ?T {
+        const str = self.get(name) orelse return null;
+
+        return switch (@typeInfo(T)) {
+            .pointer => |p| switch (p.size) {
+                .Slice => if (p.child == u8 and p.is_const) str else @compileError("Params.as: only []const u8 is supported, got " ++ @typeName(T)),
+                else => @compileError("Params.as: only []const u8 is supported, got " ++ @typeName(T)),
+            },
+            .int => std.fmt.parseInt(T, str, 10) catch return null,
+            .float => std.fmt.parseFloat(T, str) catch return null,
+            .bool => if (std.mem.eql(u8, str, "true") or std.mem.eql(u8, str, "1")) true else if (std.mem.eql(u8, str, "false") or std.mem.eql(u8, str, "0")) false else return null,
+            .@"enum" => std.meta.stringToEnum(T, str) orelse return null,
+            else => @compileError("Params.as: unsupported type " ++ @typeName(T)),
+        };
+    }
+};
+
 // --- Headers --- //
 // https://developer.mozilla.org/en-US/docs/Web/API/Headers
 
@@ -343,6 +361,8 @@ pub const Builder = struct {
     cookie_header: []const u8 = "",
     search_params_ctx: ?*anyopaque = null,
     search_params_vtable: ?*const URLSearchParams.URLSearchParamsVTable = null,
+    params_ctx: ?*anyopaque = null,
+    params_vtable: ?*const Params.ParamsVTable = null,
     formdata_ctx: ?*anyopaque = null,
     formdata_vtable: ?*const FormDataVTable = null,
     multiformdata_ctx: ?*anyopaque = null,
@@ -369,6 +389,10 @@ pub const Builder = struct {
             .searchParams = .{
                 .backend_ctx = self.search_params_ctx,
                 .vtable = self.search_params_vtable,
+            },
+            .params = .{
+                .backend_ctx = self.params_ctx orelse self.backend_ctx,
+                .vtable = self.params_vtable,
             },
             .formdata_backend_ctx = self.formdata_ctx,
             .formdata_vtable = self.formdata_vtable,

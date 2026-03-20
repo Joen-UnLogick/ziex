@@ -1,15 +1,15 @@
 var count: i32 = 0;
 pub fn Page(ctx: zx.PageContext) zx.Component {
     count += 1;
-    ctx.response.setCookie("count", std.fmt.allocPrint(ctx.arena, "{d}", .{count}) catch unreachable, .{});
+    ctx.response.cookies.set("count", std.fmt.allocPrint(ctx.arena, "{d}", .{count}) catch unreachable, .{});
     if (count == 4) {
-        ctx.response.deleteCookie("count", .{});
+        ctx.response.cookies.delete("count", .{});
         count = 0;
     }
 
     const count_cookie = ctx.request.cookies.get("count");
     if (count_cookie) |cookie| {
-        ctx.response.setCookie("count-old", cookie, .{});
+        ctx.response.cookies.set("count-old", cookie, .{});
     }
     const allocator = ctx.arena;
 

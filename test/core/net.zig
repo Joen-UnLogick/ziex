@@ -38,24 +38,25 @@ test "Request: text returns null without backend" {
     try std.testing.expect(req.text() == null);
 }
 
-test "Request: getParam returns null without backend" {
+test "Request: params.get returns null without backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
-
+ 
     const req = (Request.Builder{ .arena = fba.allocator() }).build();
-    try std.testing.expect(req.getParam("id") == null);
+    try std.testing.expect(req.params.get("id") == null);
 }
 
 test "Request: cookies field returns Cookies accessor" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
-
+ 
     const req = (Request.Builder{
         .arena = fba.allocator(),
-        .cookie_header = "session=abc123",
+        .cookie_header = "session=abc123; count=42",
     }).build();
-
+ 
     try std.testing.expectEqualStrings("abc123", req.cookies.get("session").?);
+    try std.testing.expectEqual(@as(i32, 42), req.cookies.@"as"("count", i32).?);
 }
 
 // --- Headers --- //
